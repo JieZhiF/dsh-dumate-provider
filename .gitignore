@@ -1,0 +1,7 @@
+node_modules/
+*.tgz
+*.log
+.DS_Store
+
+# internal handoff note, kept out of the public repo
+HANDOFF.md

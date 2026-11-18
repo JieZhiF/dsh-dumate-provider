@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Baidu DuMate",
+    "description": "Connects a Baidu DuMate personal membership to DSH: 22 models appear in the model picker and chat goes straight to the gateway with the web cookie; a settings page manages accounts, balance, daily check-in, per-model switches and low-balance alerts.",
+    "detail": "docs/DETAIL.md"
+  }
+}

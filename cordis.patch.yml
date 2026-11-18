@@ -1,0 +1,13 @@
+# dsh-dumate-provider bundle layer.
+#
+# One Host row: registers the `dumate` provider route (models appear in the
+# model picker), the settings page data API under /api/dumate-provider, and the
+# daily check-in timer. All settings live in the plugin's own store and on its
+# settings page; this row's `config` stays empty.
+#
+# `name` must be the package specifier exactly as installed in the profile's
+# node_modules — the loader imports it as a module.
+- insert:
+    - id: dumate-provider
+      name: "dsh-dumate-provider"
+      config: {}

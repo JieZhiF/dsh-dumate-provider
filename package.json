@@ -1,0 +1,91 @@
+{
+  "name": "dsh-dumate-provider",
+  "version": "1.1.0",
+  "description": "百度搭子 DuMate 原生 provider：模型进选择器、设置页管账号/余额/签到/模型开关，Cookie 直连对话与发放接口。Baidu DuMate provider for DeepSeek Harness — models in the picker, a settings page for accounts, balance, daily check-in and per-model switches.",
+  "type": "module",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "icon": "./icon.svg",
+  "files": [
+    "index.js",
+    "client.js",
+    "src",
+    "locale/*.json",
+    "docs",
+    "icon.svg",
+    "assets",
+    "cordis.patch.yml",
+    "README.md",
+    "README.zh.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ]
+    },
+    "compatibility": {
+      "dsh": ">=0.1.7-rc.1 <0.2.0-0 || >=0.2.0-rc.1 <0.2.1-0 || >=0.2.1-rc.1 <0.2.2-0 || >=0.2.2-alpha.1 <0.2.3-0",
+      "dshReleases": {
+        "0.1.7-rc.1": "compatible",
+        "0.1.7-rc.2": "compatible",
+        "0.2.0-rc.1": "compatible",
+        "0.2.0-rc.2": "compatible",
+        "0.2.1-rc.1": "compatible",
+        "0.2.1-rc.2": "compatible",
+        "0.2.1-rc.3": "compatible",
+        "0.2.1-rc.4": "compatible",
+        "0.2.1-rc.5": "compatible",
+        "0.2.2-alpha.2": "compatible",
+        "0.2.2-alpha.3": "compatible",
+        "0.2.2-rc.1": "compatible",
+        "0.2.2-rc.2": "compatible",
+        "0.2.2-rc.3": "compatible"
+      }
+    }
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "dsh": ">=0.1.7-rc.1 <0.2.0-0 || >=0.2.0-rc.1 <0.2.1-0 || >=0.2.1-rc.1 <0.2.2-0 || >=0.2.2-alpha.1 <0.2.3-0"
+  },
+  "scripts": {
+    "check": "node --check index.js && node --check client.js && node --check src/adapter.js && node --check src/adapter-api.js && node --check src/api.js && node --check src/auth.js && node --check src/balance.js && node --check src/browser-login.js && node --check src/checkin.js && node --check src/constants.js && node --check src/cookie.js && node --check src/fence.js && node --check src/http.js && node --check src/pool.js && node --check src/routes.js && node --check src/store.js && node --check src/util.js && node --check src/wire.js",
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "dumate",
+    "baidu",
+    "搭子",
+    "百度",
+    "llm",
+    "provider",
+    "adapter",
+    "bundle",
+    "checkin",
+    "签到",
+    "browser-login",
+    "cookie-login"
+  ],
+  "author": "viola",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
+}
