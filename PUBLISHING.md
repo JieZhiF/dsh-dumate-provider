@@ -54,7 +54,7 @@ icon: https://raw.githubusercontent.com/JieZhiF/dsh-dumate-provider/main/assets/
 - `category: model` —— 它是一个 provider/模型接入插件，归类正确。
 - 描述含 `:` 必须加引号（上面已加）。
 - 仓库需有 `dsh.bundle` manifest —— 本仓库 `package.json` 的 `dsh.bundle.patch` + 根目录 `cordis.patch.yml` 已满足。
-- 仓库需有真实可运行代码 —— 有（`src/` + `index.js` + 27 个单测）。
+- 仓库需有真实可运行代码 —— 有（`src/` + `index.js` + 29 个单测）。
 - 仓库需创建满 1 天 —— 新建当天提会被 CI 挡，隔天再提即可。
 - 描述必须属实：22 个模型、多账号故障切换、余额、每日签到，都与代码一致。
 
@@ -83,7 +83,7 @@ npm pack --dry-run
 ## 发布前自检（本机已跑过）
 
 - [x] `npm run check` —— 全部模块语法通过
-- [x] `npm test` —— 27 个单测全绿
+- [x] `npm test` —— 29 个单测全绿
 - [x] `npm pack --dry-run` —— 只含 index/client/src/locale/docs/icon/assets/README/LICENSE/CHANGELOG/cordis.patch.yml
 - [x] 全仓库与 git 历史无凭据泄露（BDUSS / sessionid / API key / cookie 明文均无）
 - [x] `engines.dsh` 覆盖 0.1.7–0.2.2，`dshReleases` 14 项标注 compatible

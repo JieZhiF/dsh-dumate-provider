@@ -7,7 +7,10 @@
   show a green "checked in" toast every time while nothing was granted. The
   service now reads the live status first and only POSTs the claim when today is
   genuinely unclaimed; an already-claimed day returns `already: true` with no
-  POST, and a claim that grants nothing says "no points detected". The settings
+  POST, and a claim that grants nothing says "no points detected". The granted
+  amount is measured from the cumulative grant counter, which chat consumption
+  never touches; a stale counter is caught by the sign-in day flip plus the
+  upstream toast, so a real grant is never reported as a failure. The settings
   page grades the result — green only for a real grant, neutral for
   already-claimed / no-points, red for failures — and the "Check in all" button
   summarizes per-account outcomes. Verified live: an already-claimed account now

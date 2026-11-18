@@ -357,7 +357,7 @@ window.__ModuleLoader__.load({
         if (rows.length === 0) return { kind: 'warn', text: t('checkinNone') }
         const failed = rows.filter(row => row.ok !== true)
         if (failed.length === rows.length) return { kind: 'err', text: t('checkinAllFailed', { n: failed.length }) }
-        const earned = rows.filter(row => row.ok === true && row.already !== true && Number(row.points) > 0)
+        const earned = rows.filter(row => row.ok === true && row.already !== true && row.granted === true)
         const done = rows.filter(row => row.ok === true && row.already === true)
         const parts = []
         if (earned.length > 0) parts.push(t('checkinGained', { n: earned.length, p: earned.reduce((sum, row) => sum + Number(row.points), 0) }))
@@ -369,8 +369,8 @@ window.__ModuleLoader__.load({
         return { kind: 'err', text: result.expired === true ? t('checkinExpired') : (result.message ?? t('checkinFailedOne')) }
       }
       if (result.already === true) return { kind: 'warn', text: result.message ?? t('checkinAlreadyOne') }
-      if (!(Number(result.points) > 0)) return { kind: 'warn', text: result.message ?? t('checkinNoPoints') }
-      return { kind: 'ok', text: result.message ?? t('checkinGainedOne', { p: result.points }) }
+      if (result.granted === true) return { kind: 'ok', text: result.message ?? t('checkinGainedOne', { p: result.points }) }
+      return { kind: 'warn', text: result.message ?? t('checkinNoPoints') }
     }
 
     /** Parse the model textarea: `id` or `id,label` per line. */

@@ -176,6 +176,7 @@ test('check-in claims once when today is open and reports the delta', async () =
   const result = await service.run(account)
   assert.equal(claims, 1)
   assert.equal(result.already, false)
+  assert.equal(result.granted, true)
   assert.equal(result.points, 200)
   assert.match(result.message, /\+200/)
 })
@@ -192,6 +193,7 @@ test('a claim that grants nothing says so instead of celebrating', async () => {
   })
   const result = await service.run(account)
   assert.equal(result.ok, true)
+  assert.equal(result.granted, false)
   assert.equal(result.points, 0)
   assert.match(result.message, /未检测到|no points/)
 })
@@ -211,4 +213,43 @@ test('check-in reports expiry without calling the claim endpoint', async () => {
   assert.equal(result.ok, false)
   assert.equal(result.expired, true)
   assert.equal(claims, 0)
+})
+
+test('a lagging grant counter is caught by the day flip, not read as failure', async () => {
+  const { CheckinService } = await import('../src/checkin.js')
+  let claims = 0
+  const account = { id: 'a1', name: 't', cookie: 'x', checkin: {} }
+  const service = new CheckinService({
+    store: fakeStore(account),
+    api: {
+      // totalPoints never moves (stale counter), but the day list flips to done
+      // once the claim lands, and the upstream toast names the grant.
+      checkinStatus: async () => ({
+        ok: true, todayDone: claims > 0, streak: 1, totalPoints: 500,
+        issuedToast: claims > 0 ? '今日已领取 200 积分' : '',
+      }),
+      claimCheckin: async () => { claims += 1; return { ok: true, result: {} } },
+    },
+  })
+  const result = await service.run(account)
+  assert.equal(result.granted, true, 'the day flip proves the claim registered')
+  assert.equal(result.points, 200, 'the toast names the granted amount')
+  assert.match(result.message, /\+200/)
+})
+
+test('a claim that registers but names no amount reports points pending', async () => {
+  const { CheckinService } = await import('../src/checkin.js')
+  let claims = 0
+  const account = { id: 'a1', name: 't', cookie: 'x', checkin: {} }
+  const service = new CheckinService({
+    store: fakeStore(account),
+    api: {
+      checkinStatus: async () => ({ ok: true, todayDone: claims > 0, streak: 1, totalPoints: 500, issuedToast: '' }),
+      claimCheckin: async () => { claims += 1; return { ok: true, result: {} } },
+    },
+  })
+  const result = await service.run(account)
+  assert.equal(result.granted, true)
+  assert.equal(result.points, 0)
+  assert.match(result.message, /稍后到账|pending/)
 })

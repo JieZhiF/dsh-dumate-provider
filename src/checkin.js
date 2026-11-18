@@ -111,19 +111,29 @@ export class CheckinService {
         this.#record(account, { ok: false, message })
         return { ok: false, message, error: claim.error, expired: claim.expired }
       }
-      // Re-read: the claim response carries no total. The delta between the
-      // two status reads is the only honest measure of what was granted.
+      // Re-read: the claim response carries no total. `totalPoints` is the
+      // cumulative grant counter (it only ever rises, chat consumption never
+      // touches it), so the delta between the two status reads is what this
+      // claim earned. Two fallbacks cover a lagging counter: the day flip
+      // (not-done → done) proves the claim registered, and the upstream toast
+      // names the granted number.
       const after = await this.api.checkinStatus(account)
-      const points = after.ok ? Math.max(0, after.totalPoints - before) : 0
-      this.#storeStatus(account, after.ok ? after : status, { points, claimed: true })
-      const message = points > 0
-        ? `签到成功，+${points} 积分 / checked in, +${points}`
+      const counterDelta = after.ok ? Math.max(0, after.totalPoints - before) : 0
+      const flipped = after.ok === true && after.todayDone === true && status.todayDone !== true
+      const toastPoints = Number((/已领取\s*(\d+)/.exec(after.issuedToast ?? '') ?? [])[1] ?? 0)
+      const points = counterDelta > 0 ? counterDelta : (flipped ? toastPoints : 0)
+      const granted = counterDelta > 0 || flipped
+      this.#storeStatus(account, after.ok ? after : status, { points, claimed: granted })
+      const message = granted
+        ? (points > 0
+            ? `签到成功，+${points} 积分 / checked in, +${points}`
+            : '签到成功，积分稍后到账 / checked in, points pending')
         : '签到已提交，但未检测到积分到账 / claimed, no points detected yet'
-      this.logger.info?.(`dumate-provider: ${account.name} 签到${points > 0 ? `成功 +${points}` : '已提交（未见积分变化）'}`)
+      this.logger.info?.(`dumate-provider: ${account.name} ${message}`)
       if (this.afterCheckin !== undefined) {
         void this.afterCheckin(account).catch(() => {})
       }
-      return { ok: true, already: false, points, streak: after.ok ? after.streak : status.streak, message }
+      return { ok: true, already: false, granted, points, streak: after.ok ? after.streak : status.streak, message }
     } catch (error) {
       const message = error?.message ?? String(error)
       this.#record(account, { ok: false, message })

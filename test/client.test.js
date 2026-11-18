@@ -62,8 +62,9 @@ test('checkinNotice grades single-account results honestly', () => {
   const { checkinNotice } = mod.__test
   const t = (key, vars) => (vars === undefined ? key : `${key}:${JSON.stringify(vars)}`)
   assert.equal(checkinNotice({ ok: true, already: true, points: 0, message: '今日已签到' }, t).kind, 'warn')
-  assert.equal(checkinNotice({ ok: true, already: false, points: 200, message: '签到成功，+200 积分' }, t).kind, 'ok')
-  assert.equal(checkinNotice({ ok: true, already: false, points: 0 }, t).kind, 'warn')
+  assert.equal(checkinNotice({ ok: true, already: false, granted: true, points: 200, message: '签到成功，+200 积分' }, t).kind, 'ok')
+  assert.equal(checkinNotice({ ok: true, already: false, granted: true, points: 0 }, t).kind, 'ok')
+  assert.equal(checkinNotice({ ok: true, already: false, granted: false, points: 0 }, t).kind, 'warn')
   assert.equal(checkinNotice({ ok: false, expired: true }, t).kind, 'err')
   assert.equal(checkinNotice(undefined, t).kind, 'err')
 })
@@ -72,7 +73,7 @@ test('checkinNotice aggregates the all-accounts reply', () => {
   const { checkinNotice } = mod.__test
   const t = (key, vars) => (vars === undefined ? key : `${key}:${JSON.stringify(vars)}`)
   const mixed = checkinNotice({ ok: true, results: [
-    { ok: true, already: false, points: 200 },
+    { ok: true, already: false, granted: true, points: 200 },
     { ok: true, already: true, points: 0 },
     { ok: false },
   ] }, t)
