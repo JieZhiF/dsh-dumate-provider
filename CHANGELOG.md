@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.3 — 2026-11-18
+
+- **Browser sign-in fixed**: `login/start` and `login/cancel` were called
+  without a body, so the page sent them as GET and the host answered
+  `unknown route`. They now post `{}` like every other action.
+
 ## 1.1.2 — 2026-11-18
 
 - The account card now shows *why* an account is cooling down (the last

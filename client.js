@@ -752,7 +752,7 @@ window.__ModuleLoader__.load({
                     setAddMode('browser')
                     setLoginState({ state: 'launching', message: t('waitingLogin') })
                     void action('login-start', async () => {
-                      const result = await call('login/start')
+                      const result = await call('login/start', {})
                       setLoginState(result)
                       return result
                     }).catch(() => {})
@@ -790,7 +790,7 @@ window.__ModuleLoader__.load({
                     key: 'cancel',
                     className: 'dp-btn',
                     onClick: () => {
-                      void call('login/cancel').catch(() => {})
+                      void call('login/cancel', {}).catch(() => {})
                       setAddMode(undefined)
                       setLoginState(undefined)
                     },
