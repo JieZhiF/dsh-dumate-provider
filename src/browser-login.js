@@ -24,6 +24,7 @@ import path from 'node:path'
 import { promisify } from 'node:util'
 
 import { normalizeCookie, validateCookie, cookieValue } from './cookie.js'
+import { userInfo } from './api.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -352,9 +353,13 @@ export class BrowserLogin {
     }
     const id = this.store.nextAccountId()
     const existing = this.store.accounts().length
+    // Default the label to the Baidu nickname behind the freshly captured
+    // cookie; `搭子账号 N` is the fallback when the identity call fails.
+    const who = await userInfo({ cookie }).catch(() => ({ ok: false, name: '' }))
+    const name = who.ok === true && who.name !== '' ? who.name.slice(0, 40) : `搭子账号 ${existing + 1}`
     const account = {
       id,
-      name: `搭子账号 ${existing + 1}`,
+      name,
       cookie,
       enabled: true,
       priority: existing,

@@ -359,3 +359,13 @@ test('absent cooldownSeconds falls back to the 60s default', async () => {
   const pool = new AccountPool({ store: { settings: () => ({}) } })
   assert.equal(pool.baseMs(), 60_000)
 })
+
+test('isPlaceholderName matches every auto label and nothing custom', async () => {
+  const { isPlaceholderName } = await import('../src/store.js')
+  for (const n of ['搭子账号 1', '搭子账号 12', '账号 3', '账号 a1', '账号 07']) {
+    assert.equal(isPlaceholderName(n), true, n)
+  }
+  for (const n of ['沁染节制', '搭子主号', '公司号 2 组', '账号 1 的备份', '']) {
+    assert.equal(isPlaceholderName(n), false, n)
+  }
+})

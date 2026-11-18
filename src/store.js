@@ -39,6 +39,18 @@ function emptyState() {
   }
 }
 
+/**
+ * True when a label is an auto-assigned placeholder.
+ *
+ * Covers every form the plugin has used: `搭子账号 3` (browser sign-in),
+ * `账号 1` (store default) and the legacy `账号 a1` (old manual add). The
+ * identity backfill adopts the real Baidu name only for these, never for a
+ * label the user typed themselves.
+ */
+export function isPlaceholderName(name) {
+  return /^(搭子账号|账号)\s*a?\d+$/i.test(String(name ?? '').trim())
+}
+
 /** Coerce one stored account into the current shape. */
 function normalizeAccount(raw, index) {
   if (raw === null || typeof raw !== 'object') return undefined

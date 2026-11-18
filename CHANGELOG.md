@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.0 — 2026-11-18
+
+- **Accounts are named by who they are.** Adding an account without a label
+  now defaults to the Baidu nickname behind the cookie (`GET
+  /api/dumate/user/info` → `displayName`, e.g. 沁染节制), falling back to
+  `搭子账号 N` only when the identity call fails. Both the manual-cookie and
+  browser sign-in paths use it.
+- **Inline rename.** Each account card shows the name with a small
+  `账号 N` line beneath it and a ✎ button; click it to set a custom label.
+- **Account count** now appears in the section header ("账号 · 3").
+
 ## 1.2.2 — 2026-11-18
 
 - **Cooldown is now a setting, and 0 turns it off.** A new "失败冷却（秒）"

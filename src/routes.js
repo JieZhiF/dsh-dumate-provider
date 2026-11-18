@@ -11,6 +11,7 @@
  */
 import { normalizeCookie, validateCookie } from './cookie.js'
 import { apiCatalog, completionsUrl } from './adapter-api.js'
+import { userInfo } from './api.js'
 import { MODEL_IDS, PROVIDER_NAME, modelInfo } from './constants.js'
 import { beijingDate } from './util.js'
 
@@ -145,13 +146,20 @@ export function createApi(deps) {
         return
       }
       const id = store.nextAccountId()
-      const name = typeof body.name === 'string' && body.name.trim() !== '' ? body.name.trim().slice(0, 40) : `账号 ${id}`
       // Prove the cookie buys a token before saving it: a stored dead cookie
       // produces a confusing "expired" on the first chat instead of here.
       const probe = await tokens.token(id, cookie, { force: true })
       if (!probe.ok) {
         sendJson(res, 400, { ok: false, error: probe.error ?? 'Cookie 无法换取 token，请确认已登录搭子网页端' })
         return
+      }
+      // No label given: default to the Baidu nickname behind this cookie, then
+      // to `搭子账号 N`. The identity call is best-effort — a failure must not
+      // reject an otherwise-valid cookie.
+      let name = typeof body.name === 'string' && body.name.trim() !== '' ? body.name.trim().slice(0, 40) : ''
+      if (name === '') {
+        const who = await userInfo({ cookie }).catch(() => ({ ok: false, name: '' }))
+        name = who.ok === true && who.name !== '' ? who.name.slice(0, 40) : `搭子账号 ${store.accounts().length + 1}`
       }
       const account = {
         id,

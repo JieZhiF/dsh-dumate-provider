@@ -64,6 +64,8 @@ window.__ModuleLoader__.load({
         test: '测试连接',
         testing: '测试中…',
         cancelCool: '取消冷却',
+        rename: '重命名',
+        renameHint: '点击右侧 ✎ 可自定义账号名',
         cooldown: '失败冷却（秒）',
         cooldownHint: '账号请求失败后的退避起点：60 → 120 → 240…（上限 15 分钟），Cookie 被拒直接冷却 15 分钟。填 0 关闭冷却，账号永远可重试。',
         cooldownOff: '已关闭',
@@ -193,6 +195,8 @@ window.__ModuleLoader__.load({
         test: 'Test connection',
         testing: 'Testing…',
         cancelCool: 'Clear cooldown',
+        rename: 'Rename',
+        renameHint: 'Click the ✎ on the right to rename this account',
         cooldown: 'Failure cooldown (seconds)',
         cooldownHint: 'The backoff start after a request fails: 60 → 120 → 240… (capped at 15 minutes); a refused cookie parks the account for the full cap. Set 0 to disable cooldown so accounts are always retryable.',
         cooldownOff: 'Disabled',
@@ -430,6 +434,10 @@ window.__ModuleLoader__.load({
       .dp-card { border: 1px solid var(--dsw-alias-border-l1, #e5e7eb); border-radius: 12px; padding: 14px 15px; background: var(--dsw-alias-bg-layer-2, #fafafa); display: flex; flex-direction: column; gap: 8px; min-width: 0; }
       .dp-card-head { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
       .dp-name { font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .dp-nameblock { display: flex; flex-direction: column; min-width: 0; gap: 1px; cursor: default; }
+      .dp-name-sub { font-size: 11px; color: var(--dsw-alias-label-tertiary, #6b7280); font-variant-numeric: tabular-nums; }
+      .dp-icon-btn { border: none; background: transparent; color: var(--dsw-alias-label-tertiary, #6b7280); cursor: pointer; font-size: 13px; padding: 2px 5px; border-radius: 6px; flex: none; }
+      .dp-icon-btn:hover { background: color-mix(in srgb, var(--dsw-alias-label-tertiary, #6b7280) 14%, transparent); color: inherit; }
       .dp-badge { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 2px 9px; font-size: 11.5px; font-weight: 600; line-height: 1.7; flex: none; border: 1px solid transparent; }
       .dp-badge.info { color: var(--dsw-alias-state-business-primary, #2563eb); background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #2563eb) 12%, transparent); }
       .dp-badge.muted { color: var(--dsw-alias-label-tertiary, #6b7280); background: color-mix(in srgb, var(--dsw-alias-label-tertiary, #6b7280) 12%, transparent); }
@@ -519,6 +527,9 @@ window.__ModuleLoader__.load({
       const [apiForm, setApiForm] = useState(false)
       const [apiDraft, setApiDraft] = useState({ label: '', baseURL: '', apiKey: '', models: '' })
       const [pick, setPick] = useState({})
+      // Inline rename: the account id being edited and its draft value.
+      const [renaming, setRenaming] = useState(undefined)
+      const [renameDraft, setRenameDraft] = useState('')
       // A ticking clock so the cooldown countdown actually moves between the
       // 30-second state polls. Only runs while at least one account is parked.
       const [now, setNow] = useState(() => Date.now())
@@ -632,7 +643,46 @@ window.__ModuleLoader__.load({
             h('div', { key: 'h', className: 'dp-card-head' }, [
               h('div', { key: 'n', className: 'dp-row', style: { minWidth: 0 } }, [
                 h('span', { key: 'd', className: dotClass }),
-                h('span', { key: 'name', className: 'dp-name', title: account.name }, account.name),
+                renaming === account.id
+                  ? h('span', { key: 'edit', className: 'dp-row', style: { minWidth: 0 } }, [
+                    h('input', {
+                      key: 'i',
+                      className: 'dp-input',
+                      style: { width: 180, padding: '4px 8px', fontSize: 13 },
+                      autoFocus: true,
+                      value: renameDraft,
+                      onChange: event => setRenameDraft(event.target.value),
+                      onKeyDown: event => {
+                        if (event.key === 'Enter') {
+                          const value = renameDraft.trim()
+                          if (value !== '' && value !== account.name) {
+                            void action(`rename-${account.id}`, () => call('account/update', { id: account.id, name: value }))
+                          }
+                          setRenaming(undefined)
+                        } else if (event.key === 'Escape') {
+                          setRenaming(undefined)
+                        }
+                      },
+                      onBlur: () => {
+                        const value = renameDraft.trim()
+                        if (value !== '' && value !== account.name) {
+                          void action(`rename-${account.id}`, () => call('account/update', { id: account.id, name: value }))
+                        }
+                        setRenaming(undefined)
+                      },
+                    }),
+                  ])
+                  : h('span', { key: 'nameblock', className: 'dp-nameblock', title: t('renameHint') }, [
+                    h('span', { key: 'name', className: 'dp-name' }, account.name),
+                    h('span', { key: 'sub', className: 'dp-name-sub' }, `账号 ${String(account.id).replace(/^a/, '') || account.id}`),
+                  ]),
+                renaming === account.id ? null : h('button', {
+                  key: 'pen',
+                  className: 'dp-icon-btn',
+                  title: t('rename'),
+                  disabled: busy !== '',
+                  onClick: () => { setRenaming(account.id); setRenameDraft(account.name) },
+                }, '✎'),
                 h('span', {
                   key: 'plan',
                   className: `dp-badge ${planOf(balance, t).tone}`,
@@ -748,7 +798,7 @@ window.__ModuleLoader__.load({
         // ── accounts ────────────────────────────────────────────────────────
         h('div', { key: 'accounts', className: 'dp-section' }, [
           h('div', { key: 'h', className: 'dp-row', style: { justifyContent: 'space-between' } }, [
-            h('div', { key: 't', className: 'dp-section-title' }, t('accounts')),
+            h('div', { key: 't', className: 'dp-section-title' }, `${t('accounts')} · ${accounts.length}`),
             h('div', { key: 'a', className: 'dp-row' }, [
               h('button', {
                 key: 'all',

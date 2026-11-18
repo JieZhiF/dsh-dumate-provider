@@ -95,6 +95,25 @@ export async function claimCheckin(account, options = {}) {
 }
 
 /**
+ * The signed-in Baidu identity, for naming an account.
+ *
+ * `GET /api/dumate/user/info` returns `displayName` (the Baidu nickname the
+ * user sees on dumate.cn) and `userId`. Used only to give a freshly added
+ * account a meaningful default name; a failure is non-fatal — the caller
+ * falls back to `搭子账号 N`.
+ *
+ * @returns {Promise<{ok:boolean, name:string, uid:string, error?:string, expired?:boolean}>}
+ */
+export async function userInfo(account, options = {}) {
+  const response = await webCall(account, WEB_PATHS.userInfo, options)
+  if (!response.ok) return { ok: false, name: '', uid: '', error: response.error, expired: response.expired }
+  const result = response.json?.result ?? {}
+  const name = typeof result.displayName === 'string' ? result.displayName.trim() : ''
+  const uid = typeof result.userId === 'string' ? result.userId : typeof result.bceUserId === 'string' ? result.bceUserId : ''
+  return { ok: true, name, uid }
+}
+
+/**
  * Normalized balance view.
  *
  * `totalPoints` in the raw payload sums EVERY Baidu product's packages (a
