@@ -1,5 +1,7 @@
 # dsh-dumate-provider · 百度搭子
 
+[English](./README.md) | **简体中文**
+
 DeepSeek Harness（DSH）原生插件：把**百度搭子 DuMate 个人会员**接成 provider，模型进选择器，账号 / 余额 / 签到 / 模型开关进设置页。
 
 - 22 个模型（DeepSeek V4 Pro、V4.1 Flash、Kimi K3 / K3.1、GLM-5.3、Qwen 3.8 Max、豆包 Seed 2.0、文心 4.5 VL、搭子自动档 L0–L2 …）

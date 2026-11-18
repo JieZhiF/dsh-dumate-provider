@@ -1,5 +1,7 @@
 # dsh-dumate-provider · Baidu DuMate
 
+**English** | [简体中文](./README.zh.md)
+
 Native DeepSeek Harness (DSH) plugin: connects a **Baidu DuMate personal membership** as a provider. Models appear in the model picker; accounts, balance, daily check-in and per-model switches live on one settings page.
 
 - 22 models (DeepSeek V4 Pro / V4.1 Flash, Kimi K3 / K3.1, GLM-5.3, Qwen 3.8 Max, Doubao Seed 2.0, ERNIE 4.5 VL, the `dm-auto-model` L0–L2 tiers, …)
