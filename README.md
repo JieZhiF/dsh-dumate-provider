@@ -19,7 +19,7 @@ If it is not listed yet, use one of the direct paths below.
 **GitHub**:
 
 ```bash
-dsh plugin --profile web add github:wearetheone777/dsh-dumate-provider
+dsh plugin --profile web add github:JieZhiF/dsh-dumate-provider
 ```
 
 **npm** (after publishing):

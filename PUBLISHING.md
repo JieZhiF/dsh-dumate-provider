@@ -24,8 +24,8 @@ gh repo edit <你的账号>/dsh-dumate-provider --add-topic dsh-plugin --add-top
 
 或网页：仓库 → About（右侧齿轮）→ Topics 填 `dsh-plugin`。
 
-> 若账号是 `wearetheone777`（本机其它仓库所用），README 里的安装命令已按此写好；
-> 若用别的账号，把 `README.md` / `README.zh.md` 里的 `wearetheone777` 换成实际账号再推。
+> README / README.zh 里的安装命令已按账号 `JieZhiF` 写好；
+> 若最终传到别的账号，把两个 README 里的 `JieZhiF` 换成实际账号再推。
 
 ---
 
@@ -37,16 +37,16 @@ gh repo edit <你的账号>/dsh-dumate-provider --add-topic dsh-plugin --add-top
 - 新文件路径：`data/plugins/<你的账号>__dsh-dumate-provider.yml`
   （文件名 = 你的 GitHub 账号 + 双下划线 + 仓库名，必须和 `url` 完全一致）
 
-文件内容（把 `wearetheone777` 换成实际账号）：
+文件内容（账号 `JieZhiF`，与 README 一致）：
 
 ```yaml
-url: https://github.com/wearetheone777/dsh-dumate-provider
-name: wearetheone777/dsh-dumate-provider
+url: https://github.com/JieZhiF/dsh-dumate-provider
+name: JieZhiF/dsh-dumate-provider
 category: model
 description:
   en: 'Native Baidu DuMate provider for DeepSeek Harness: 22 models in the picker, cookie sign-in, multi-account failover, balance and daily check-in.'
   zh: '百度搭子 DuMate 原生 provider：22 个模型进选择器，Cookie 登录、多账号故障切换、余额查询与每日签到。'
-icon: https://raw.githubusercontent.com/wearetheone777/dsh-dumate-provider/main/assets/icon-180.png
+icon: https://raw.githubusercontent.com/JieZhiF/dsh-dumate-provider/main/assets/icon-180.png
 ```
 
 要点（对照官方贡献指南）：
