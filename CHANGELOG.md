@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.2 — 2026-11-18
+
+- The account card now shows *why* an account is cooling down (the last
+  upstream failure), not just the countdown — e.g. `冷却中（42 秒）：HTTP 429`.
+
 ## 1.1.1 — 2026-11-18
 
 - **Check-in no longer reports a false success.** The claim endpoint answers
