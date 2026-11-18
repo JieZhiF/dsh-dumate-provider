@@ -282,6 +282,21 @@ export function createApi(deps) {
       sendJson(res, 200, { ok: true, results })
     },
 
+    /** POST /cooldown/clear {id?} — drop one (or every) cooldown now. */
+    async POST_cooldown_clear(body, _req, res) {
+      if (body?.id !== undefined && body?.id !== '') {
+        const account = accountOf(body.id)
+        if (account === undefined) {
+          sendJson(res, 404, { ok: false, error: '账号不存在' })
+          return
+        }
+        pool.clear(account.id)
+        sendJson(res, 200, { ok: true, cleared: 1 })
+        return
+      }
+      sendJson(res, 200, { ok: true, cleared: pool.clearAll() })
+    },
+
     /** POST /balance/refresh — refresh every account's balance + check-in now. */
     async POST_balance_refresh(_body, _req, res) {
       const results = await balance.refreshAll()
@@ -321,6 +336,14 @@ export function createApi(deps) {
       if (body.refreshSeconds !== undefined) {
         const value = Number(body.refreshSeconds)
         patch.refreshSeconds = Number.isFinite(value) ? Math.min(300, Math.max(10, Math.round(value))) : 30
+      }
+      if (body.cooldownSeconds !== undefined) {
+        const value = Number(body.cooldownSeconds)
+        if (!Number.isFinite(value) || value < 0) {
+          sendJson(res, 400, { ok: false, error: '冷却时间必须是非负秒数（0 = 关闭冷却）' })
+          return
+        }
+        patch.cooldownSeconds = Math.min(900, Math.round(value))
       }
       if (body.disclaimerAccepted === true) patch.disclaimerAcceptedAt = Date.now()
       await store.update(state => {

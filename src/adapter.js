@@ -205,12 +205,29 @@ export class DumateAdapter {
     }
 
     if (lastError !== undefined) throw lastError
-    throw new DumateError(
-      this.pool.ready().length === 0
-        ? '没有可用的搭子账号：请到「设置 → 百度搭子」粘贴 Cookie 或启用账号'
-        : '所有搭子账号暂时都不可用（冷却中或凭证失效），请稍后重试',
-      { code: 'NO_ACCOUNT', retryable: false },
-    )
+    // Nothing was ever picked and nothing failed: distinguish "there is no
+    // account to use" from "the accounts exist but are parked", because the
+    // advice is different — the first needs a cookie, the second needs a
+    // minute, or the cooldown setting turned down to 0.
+    const configured = this.store.accounts().filter(account => account.enabled !== false && account.cookie !== '')
+    if (configured.length === 0) {
+      throw new DumateError(
+        '没有可用的搭子账号：请到「设置 → 百度搭子」粘贴 Cookie 或启用账号',
+        { code: 'NO_ACCOUNT', retryable: false },
+      )
+    }
+    const cooling = configured
+      .map(account => ({ account, until: this.pool.cooldownUntil(account.id) }))
+      .filter(entry => entry.until > 0)
+    if (cooling.length > 0) {
+      const seconds = Math.max(1, Math.ceil(Math.min(...cooling.map(entry => entry.until - Date.now())) / 1000))
+      const reason = cooling[0].account.lastError || this.pool.view()[cooling[0].account.id]?.reason || '上游暂时失败'
+      throw new DumateError(
+        `搭子账号全部在冷却中，约 ${seconds} 秒后自动恢复（最近原因：${reason}）。可稍后重试，或在「设置 → 百度搭子」把冷却时间调小/设为 0 关闭`,
+        { code: 'COOLING', retryable: true },
+      )
+    }
+    throw new DumateError('所有搭子账号暂时都不可用，请稍后重试', { code: 'NO_ACCOUNT', retryable: true })
   }
 
   /** Normalize any thrown value into the classified failure shape. */

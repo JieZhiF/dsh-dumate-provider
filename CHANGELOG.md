@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.2.2 — 2026-11-18
+
+- **Cooldown is now a setting, and 0 turns it off.** A new "失败冷却（秒）"
+  field on the settings page sets the backoff start (default 60; doubling per
+  repeat failure, capped at 15 minutes). Entering `0` disables the mechanism
+  completely — accounts are never parked and every request retries
+  immediately; the last failure reason still shows on the card.
+- **The countdown ticks.** The cooldown seconds now count down live once a
+  second instead of freezing between the 30-second state polls.
+- **A "取消冷却" button** clears one account's cooldown on the spot.
+- **The "no account" error was wrong and is fixed.** When accounts exist but
+  are all parked, the message no longer says "go paste a cookie" — it names
+  the remaining seconds, the last failure reason, and points at the cooldown
+  setting to shorten or disable it.
+
 ## 1.2.1 — 2026-11-18
 
 - **Check-in record is no longer empty.** Two fixes: a successful check-in now

@@ -63,6 +63,10 @@ window.__ModuleLoader__.load({
         disabled: '已停用',
         test: '测试连接',
         testing: '测试中…',
+        cancelCool: '取消冷却',
+        cooldown: '失败冷却（秒）',
+        cooldownHint: '账号请求失败后的退避起点：60 → 120 → 240…（上限 15 分钟），Cookie 被拒直接冷却 15 分钟。填 0 关闭冷却，账号永远可重试。',
+        cooldownOff: '已关闭',
         checkin: '签到',
         checkinAll: '全部签到',
         checking: '签到中…',
@@ -188,6 +192,10 @@ window.__ModuleLoader__.load({
         disabled: 'Disabled',
         test: 'Test connection',
         testing: 'Testing…',
+        cancelCool: 'Clear cooldown',
+        cooldown: 'Failure cooldown (seconds)',
+        cooldownHint: 'The backoff start after a request fails: 60 → 120 → 240… (capped at 15 minutes); a refused cookie parks the account for the full cap. Set 0 to disable cooldown so accounts are always retryable.',
+        cooldownOff: 'Disabled',
         checkin: 'Check in',
         checkinAll: 'Check in all',
         checking: 'Checking in…',
@@ -511,6 +519,9 @@ window.__ModuleLoader__.load({
       const [apiForm, setApiForm] = useState(false)
       const [apiDraft, setApiDraft] = useState({ label: '', baseURL: '', apiKey: '', models: '' })
       const [pick, setPick] = useState({})
+      // A ticking clock so the cooldown countdown actually moves between the
+      // 30-second state polls. Only runs while at least one account is parked.
+      const [now, setNow] = useState(() => Date.now())
 
       const call = useCallback(async (path, body) => {
         const response = await fetch(`${API}/${path}`, {
@@ -539,6 +550,15 @@ window.__ModuleLoader__.load({
         const timer = setInterval(() => { void load() }, seconds * 1000)
         return () => clearInterval(timer)
       }, [load, snapshot?.settings?.refreshSeconds])
+
+      // While any account is parked, advance the clock every second so the
+      // countdown ticks instead of freezing until the next state poll.
+      useEffect(() => {
+        const until = Object.values(snapshot?.cooldowns ?? {}).reduce((max, entry) => Math.max(max, Number(entry?.until) || 0), 0)
+        if (until <= Date.now()) return undefined
+        const timer = setInterval(() => setNow(Date.now()), 1000)
+        return () => clearInterval(timer)
+      }, [snapshot?.cooldowns])
 
       // Poll the host while the sign-in window is open. The host owns the
       // browser and the cookie jar; this page only shows what it reports.
@@ -605,7 +625,7 @@ window.__ModuleLoader__.load({
           const checkin = account.checkin ?? {}
           const balance = account.balance ?? {}
           const coolUntil = cooling[account.id]?.until ?? 0
-          const coolingNow = coolUntil > Date.now()
+          const coolingNow = coolUntil > now
           const doneToday = checkin.done === true
           const dotClass = account.enabled === false ? 'dp-dot off' : (account.lastError !== '' ? 'dp-dot err' : 'dp-dot')
           return h('div', { key: account.id, className: 'dp-card' }, [
@@ -642,7 +662,7 @@ window.__ModuleLoader__.load({
               checkin.streak > 0 ? t('streak', { n: checkin.streak }) : '',
               account.hasCookie !== true ? ` · ${t('noCookies')}` : '',
               ` · ${ago(balance.at, t)}`,
-              coolingNow ? ` · ${(() => { const n = Math.max(1, Math.round((coolUntil - Date.now()) / 1000)); const r = String(cooling[account.id]?.reason ?? '').slice(0, 48); return r !== '' ? t('coolReason', { n, r }) : t('cooling', { n }) })()}` : '',
+              coolingNow ? ` · ${(() => { const n = Math.max(1, Math.ceil((coolUntil - now) / 1000)); const r = String(cooling[account.id]?.reason ?? '').slice(0, 48); return r !== '' ? t('coolReason', { n, r }) : t('cooling', { n }) })()}` : '',
             ].filter(Boolean).join('')),
             account.lastError !== '' ? h('div', { key: 'e', className: 'dp-hint dp-error-text' }, t('lastError', { e: account.lastError })) : null,
             h('div', { key: 'a', className: 'dp-row' }, [
@@ -658,6 +678,12 @@ window.__ModuleLoader__.load({
                 disabled: busy !== '' || account.hasCookie !== true,
                 onClick: () => { void action(`test-${account.id}`, () => call('account/test', { id: account.id })) },
               }, busy === `test-${account.id}` ? t('testing') : t('test')),
+              coolingNow ? h('button', {
+                key: 'uncool',
+                className: 'dp-btn small',
+                disabled: busy !== '',
+                onClick: () => { void action(`uncool-${account.id}`, () => call('cooldown/clear', { id: account.id })) },
+              }, t('cancelCool')) : null,
               h('button', {
                 key: 're',
                 className: 'dp-btn small',
@@ -917,6 +943,32 @@ window.__ModuleLoader__.load({
               ]),
             ]),
             h('div', { key: 'rh', className: 'dp-hint' }, t('thresholdHint', { days: Math.max(0.2, Math.round((Number(settings.alertThreshold ?? 1000) / 200) * 10) / 10) })),
+          ]),
+          h('div', { key: 'card3', className: 'dp-card' }, [
+            h('div', { key: 'r1', className: 'dp-inline' }, [
+              h('div', { key: 'l', className: 'dp-label' }, t('cooldown')),
+              h('div', { key: 'w', className: 'dp-row' }, [
+                h('input', {
+                  key: 'i',
+                  className: 'dp-input',
+                  style: { width: 150 },
+                  type: 'number',
+                  min: 0,
+                  max: 900,
+                  step: 10,
+                  defaultValue: settings.cooldownSeconds ?? 60,
+                  onBlur: event => {
+                    const value = Number(event.target.value)
+                    if (!Number.isFinite(value) || value < 0 || value === settings.cooldownSeconds) return
+                    void action('settings-cooldown', () => call('settings', { cooldownSeconds: value }))
+                  },
+                }),
+                (settings.cooldownSeconds ?? 60) === 0
+                  ? h('span', { key: 'off', className: 'dp-badge info' }, t('cooldownOff'))
+                  : h('span', { key: 'u', className: 'dp-label' }, 's'),
+              ]),
+            ]),
+            h('div', { key: 'rh', className: 'dp-hint' }, t('cooldownHint')),
           ]),
         ]),
 

@@ -1,6 +1,6 @@
 {
   "name": "dsh-dumate-provider",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "百度搭子 DuMate 原生 provider：模型进选择器、设置页管账号/余额/签到/模型开关，Cookie 直连对话与发放接口。Baidu DuMate provider for DeepSeek Harness — models in the picker, a settings page for accounts, balance, daily check-in and per-model switches.",
   "type": "module",
   "main": "./index.js",

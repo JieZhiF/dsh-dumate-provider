@@ -163,6 +163,13 @@ export const DEFAULT_SETTINGS = {
   alertEnabled: true,
   /** Page-local refresh cadence for the settings view, in seconds. */
   refreshSeconds: 30,
+  /**
+   * Base cooldown after a failed request, in seconds. Failures on the same
+   * account double it (60 → 120 → 240, capped at 15 minutes), and a refused
+   * cookie parks it for the full cap. `0` disables the mechanism entirely:
+   * every account stays eligible and each request retries immediately.
+   */
+  cooldownSeconds: 60,
   /** Points this plugin's daily check-in grants (web end only; the PC end adds 300 separately). */
   webCheckinPoints: 200,
   /** Notified balance floor, so one dip does not warn on every tick. */

@@ -328,3 +328,34 @@ test('a successful check-in writes a run record and keeps the server day list', 
   assert.equal(again.already, true)
   assert.equal(store.state.runs.length, 1, 'a no-op repeat must not be logged')
 })
+
+// ── cooldown pool ────────────────────────────────────────────────────────────
+test('cooldownSeconds 0 disables parking but keeps the reason', async () => {
+  const { AccountPool } = await import('../src/pool.js')
+  const store = { settings: () => ({ cooldownSeconds: 0 }) }
+  const pool = new AccountPool({ store })
+  pool.markFailure('a1', { message: 'HTTP 503' })
+  assert.equal(pool.cooldownUntil('a1'), 0, 'an account is never parked when cooldown is off')
+  assert.equal(pool.available({ id: 'a1', enabled: true, cookie: 'x' }), true)
+  assert.equal(pool.view().a1.reason, 'HTTP 503', 'the reason still surfaces for the page')
+})
+
+test('cooldown doubles from the configured base and clear drops it', async () => {
+  const { AccountPool } = await import('../src/pool.js')
+  const store = { settings: () => ({ cooldownSeconds: 30 }) }
+  const pool = new AccountPool({ store })
+  pool.markFailure('a1', { message: 'boom' })
+  const first = pool.cooldownUntil('a1') - Date.now()
+  assert.ok(first >= 29_000 && first <= 30_000, `first backoff ≈30s, got ${first}`)
+  pool.markFailure('a1', { message: 'boom' })
+  const second = pool.cooldownUntil('a1') - Date.now()
+  assert.ok(second >= 59_000, `second backoff doubles ≈60s, got ${second}`)
+  assert.equal(pool.clear('a1'), true)
+  assert.equal(pool.cooldownUntil('a1'), 0)
+})
+
+test('absent cooldownSeconds falls back to the 60s default', async () => {
+  const { AccountPool } = await import('../src/pool.js')
+  const pool = new AccountPool({ store: { settings: () => ({}) } })
+  assert.equal(pool.baseMs(), 60_000)
+})
