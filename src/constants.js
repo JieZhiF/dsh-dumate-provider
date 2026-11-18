@@ -56,6 +56,7 @@ export const WEB_PATHS = {
   checkin: '/api/dumate/points/loginBonus',
   quota: '/api/dumate/points/quota_overview?clientType=desktop&timezone=Asia%2FShanghai&ignoreLoginBonus=true',
   chargeRecords: '/api/dumate/points/records/charge',
+  usageRecords: '/api/dumate/points/records/usage',
   userInfo: '/api/dumate/user/info',
 }
 

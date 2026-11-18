@@ -92,7 +92,7 @@ function sendJson(res, status, value) {
  * @returns {(req:import('node:http').IncomingMessage, res:import('node:http').ServerResponse)=>Promise<void>}
  */
 export function createApi(deps) {
-  const { store, tokens, pool, balance, checkin, logins, rejection, version, logger } = deps
+  const { store, tokens, pool, balance, checkin, logins, usage, rejection, version, logger } = deps
   const catalogChanged = () => {
     try {
       deps.onCatalogChange?.()
@@ -120,6 +120,7 @@ export function createApi(deps) {
         providerName: PROVIDER_NAME,
         ...publicState,
         cooldowns: pool.view(),
+        sessionUsage: usage?.view() ?? [],
         beijingDate: beijingDate(),
         models: MODEL_IDS.map(id => {
           const info = modelInfo(id)
@@ -303,6 +304,17 @@ export function createApi(deps) {
         return
       }
       sendJson(res, 200, { ok: true, cleared: pool.clearAll() })
+    },
+
+    /** POST /usage/refresh — fold late-landing charges into recent sessions. */
+    async POST_usage_refresh(_body, _req, res) {
+      const account = store.accounts().find(entry => entry.enabled !== false && entry.cookie !== '')
+      if (account === undefined) {
+        sendJson(res, 200, { ok: true, points: 0, sessions: 0 })
+        return
+      }
+      const result = await usage?.rescan(account).catch(() => ({ ok: false, points: 0, sessions: 0 })) ?? { ok: true, points: 0, sessions: 0 }
+      sendJson(res, 200, { ok: true, ...result })
     },
 
     /** POST /balance/refresh — refresh every account's balance + check-in now. */

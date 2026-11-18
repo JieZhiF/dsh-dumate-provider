@@ -28,6 +28,7 @@ import { createRejection } from './src/fence.js'
 import { AccountPool } from './src/pool.js'
 import { createApi } from './src/routes.js'
 import { Store, isPlaceholderName } from './src/store.js'
+import { UsageTracker } from './src/usage.js'
 
 /** How often the scheduler looks at the clock. */
 const TICK_MS = 60_000
@@ -68,7 +69,8 @@ export async function apply(ctx) {
     afterCheckin: account => balance.refresh(account),
   })
   const logins = new BrowserLogin({ store, tokens, logger })
-  const adapter = new DumateAdapter({ store, tokens, pool, logger })
+  const usage = new UsageTracker({ store, logger })
+  const adapter = new DumateAdapter({ store, tokens, pool, usage, logger })
   const apiAdapter = new ApiAdapter({ store, logger })
 
   /**
@@ -123,7 +125,7 @@ export async function apply(ctx) {
     event => logger.info?.(`dumate-provider: settings request rejected (${event.source}:${event.reason}, ${event.status})`),
   )
   const api = createApi({
-    store, tokens, pool, balance, checkin, logins, rejection, version: VERSION, logger,
+    store, tokens, pool, balance, checkin, logins, usage, rejection, version: VERSION, logger,
     // Announce a changed catalog so the picker reloads. The event exists from
     // 0.2.2 on; emitting it on an older host reaches no listener, which is the
     // same result as not emitting at all.

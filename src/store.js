@@ -34,6 +34,12 @@ function emptyState() {
     models: {},
     history: [],
     runs: [],
+    // Per-session point consumption (see src/usage.js): totals keyed by
+    // sessionId, a recency order, and the fingerprints of charges already
+    // counted so an overlapping window never double-counts.
+    sessionUsage: {},
+    sessionUsageOrder: [],
+    seenChargeSigs: [],
     createdAt: Date.now(),
     updatedAt: Date.now(),
   }

@@ -55,12 +55,14 @@ export class DumateAdapter {
    * @param {import('./store.js').Store} options.store
    * @param {import('./auth.js').TokenPool} options.tokens
    * @param {import('./pool.js').AccountPool} options.pool
+   * @param {import('./usage.js').UsageTracker} [options.usage]
    * @param {{info?:Function, warn?:Function}} [options.logger]
    */
   constructor(options) {
     this.store = options.store
     this.tokens = options.tokens
     this.pool = options.pool
+    this.usage = options.usage
     this.logger = options.logger ?? {}
   }
 
@@ -144,6 +146,8 @@ export class DumateAdapter {
    */
   async *stream(options) {
     const entry = modelInfo(options.model) ?? null
+    const sessionId = options.sessionId
+    this.usage?.turnStart(sessionId)
     const tried = new Set()
     let attempts = 0
     let lastError
@@ -191,9 +195,15 @@ export class DumateAdapter {
       } catch (error) {
         const failure = this.#classify(error)
         this.pool.markFailure(account.id, { message: failure.message, status: failure.status, auth: failure.code === 'AUTH' })
+        // A broken stream was still billed for what it generated; fold the
+        // charges before reporting the failure.
+        void this.usage?.turnEnd(account, sessionId).catch(() => {})
         throw failure
       }
       this.pool.markSuccess(account.id)
+      // Fold this turn's charges into the session total. Best effort and
+      // never awaited: the answer already belongs to the caller.
+      void this.usage?.turnEnd(account, sessionId).catch(() => {})
       this.store.update(state => {
         const stored = state.accounts.find(candidate => candidate.id === account.id)
         if (stored !== undefined) {

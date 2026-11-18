@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.4.0 — 2026-11-18
+
+- **Per-session point consumption.** DuMate bills anonymously (every usage
+  record has an empty `conversationId`), so the plugin attributes charges by
+  time window: each turn records when it started, and after it ends reads the
+  charges stamped inside that window and folds them into the session's running
+  total. Every charge is fingerprinted and counted **once, ever**, so
+  overlapping windows never double-count. A "会话消耗" section on the settings
+  page lists recent sessions with their charged points; a refresh re-scans to
+  catch a charge the upstream stamped a few seconds late. Verified live: an
+  older window attributed 13 rows / 75.77 points, and a re-scan added 0.
+
 ## 1.3.1 — 2026-11-18
 
 - **The "取消冷却" button is always visible**, greyed and inert when the

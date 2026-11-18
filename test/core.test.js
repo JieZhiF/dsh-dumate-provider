@@ -369,3 +369,67 @@ test('isPlaceholderName matches every auto label and nothing custom', async () =
     assert.equal(isPlaceholderName(n), false, n)
   }
 })
+
+// ── per-session usage attribution ─────────────────────────────────────────────
+function usageStore() {
+  const state = { sessionUsage: {}, sessionUsageOrder: [], seenChargeSigs: [] }
+  return { state, get: () => state, update(fn) { fn(state); return Promise.resolve() } }
+}
+const sec = s => ({ ok: true, rows: s.map((r, i) => ({ at: r.at, points: r.p, packageId: 'pkg', sig: `${r.at}|-${r.p}|pkg|${i}` })), consumedPoints: 0, totalCount: s.length })
+
+test('a turn folds only the charges inside its own window', async () => {
+  const { UsageTracker } = await import('../src/usage.js')
+  const store = usageStore()
+  let rows = []
+  const tracker = new UsageTracker({ store, api: { usageRecords: async () => sec(rows) } })
+  const account = { cookie: 'x' }
+  rows = [{ at: Math.floor(Date.now() / 1000), p: 6.62 }]
+  tracker.turnStart('s1')
+  const r = await tracker.turnEnd(account, 's1')
+  assert.equal(r.ok, true)
+  assert.equal(r.points, 6.62)
+  assert.equal(tracker.total('s1'), 6.62)
+})
+
+test('the same charge is never counted twice across turns', async () => {
+  const { UsageTracker } = await import('../src/usage.js')
+  const store = usageStore()
+  const at = Math.floor(Date.now() / 1000)
+  const tracker = new UsageTracker({ store, api: { usageRecords: async () => sec([{ at, p: 3 }]) } })
+  const account = { cookie: 'x' }
+  tracker.turnStart('s1'); await tracker.turnEnd(account, 's1')
+  tracker.turnStart('s1'); await tracker.turnEnd(account, 's1')
+  assert.equal(tracker.total('s1'), 3, 'overlapping windows must not double-count')
+})
+
+test('rescan claims a late charge for the most recent session once', async () => {
+  const { UsageTracker } = await import('../src/usage.js')
+  const store = usageStore()
+  const at = Math.floor(Date.now() / 1000)
+  let rows = []
+  const tracker = new UsageTracker({ store, api: { usageRecords: async () => sec(rows) } })
+  const account = { cookie: 'x' }
+  // A turn whose read found nothing yet (the charge had not landed).
+  tracker.turnStart('s1')
+  await tracker.turnEnd(account, 's1')
+  assert.equal(tracker.total('s1'), 0)
+  // The charge lands late; rescan folds it once into the recent session.
+  rows = [{ at, p: 5 }]
+  const r = await tracker.rescan(account)
+  assert.equal(r.points, 5)
+  assert.equal(tracker.total('s1'), 5)
+  const again = await tracker.rescan(account)
+  assert.equal(again.points, 0, 'rescan must not re-add a counted charge')
+})
+
+test('view lists only sessions with charges, newest first', async () => {
+  const { UsageTracker } = await import('../src/usage.js')
+  const store = usageStore()
+  let p = 0
+  const tracker = new UsageTracker({ store, api: { usageRecords: async () => sec([{ at: Math.floor(Date.now() / 1000), p: (p += 1) }]) } })
+  tracker.turnStart('sA'); await tracker.turnEnd({ cookie: 'x' }, 'sA')
+  tracker.turnStart('sB'); await tracker.turnEnd({ cookie: 'x' }, 'sB')
+  const view = tracker.view()
+  assert.deepEqual(view.map(e => e.sessionId), ['sB', 'sA'])
+  assert.equal(view[0].points, 2)
+})

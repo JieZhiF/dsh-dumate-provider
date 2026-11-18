@@ -114,6 +114,49 @@ export async function userInfo(account, options = {}) {
 }
 
 /**
+ * Point-consumption records in a window.
+ *
+ * `GET /api/dumate/points/records/usage` requires startAt/endAt (Unix seconds)
+ * or it answers a parameter error. Each row is a single charge: `pointsChange`
+ * is a negative decimal string, `createdAt` a Unix second. The rows carry no
+ * conversation id (measured: empty on every row), so per-session attribution
+ * is the plugin's job, by time window — see src/usage.js.
+ *
+ * @param {{cookie:string}} account
+ * @param {{startAt:number, endAt:number, page?:number, limit?:number}} window
+ * @returns {Promise<{ok:boolean, rows:Array<{at:number, points:number, sig:string, packageId:string}>, consumedPoints:number, totalCount:number, error?:string, expired?:boolean}>}
+ */
+export async function usageRecords(account, window, options = {}) {
+  const q = new URLSearchParams()
+  q.set('startAt', String(Math.floor(window.startAt)))
+  q.set('endAt', String(Math.floor(window.endAt)))
+  q.set('page', String(window.page ?? 1))
+  q.set('limit', String(window.limit ?? 100))
+  const response = await webCall(account, `${WEB_PATHS.usageRecords}?${q.toString()}`, options)
+  if (!response.ok) return { ok: false, rows: [], consumedPoints: 0, totalCount: 0, error: response.error, expired: response.expired }
+  const result = response.json?.result ?? {}
+  const raw = Array.isArray(result.list) ? result.list : []
+  const rows = []
+  for (const entry of raw) {
+    if (entry === null || typeof entry !== 'object') continue
+    const at = Number.isFinite(entry.createdAt) ? entry.createdAt : 0
+    const change = Math.abs(money(entry.pointsChange))
+    rows.push({
+      at,
+      points: change,
+      packageId: String(entry.packageId ?? ''),
+      sig: `${at}|${entry.pointsChange ?? ''}|${entry.packageId ?? ''}`,
+    })
+  }
+  return {
+    ok: true,
+    rows,
+    consumedPoints: money(result.consumedPoints),
+    totalCount: Number.isFinite(result.totalCount) ? result.totalCount : rows.length,
+  }
+}
+
+/**
  * Normalized balance view.
  *
  * `totalPoints` in the raw payload sums EVERY Baidu product's packages (a

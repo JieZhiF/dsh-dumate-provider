@@ -89,6 +89,9 @@ window.__ModuleLoader__.load({
         noCookies: '未配置 Cookie',
         balance: '余额',
         points: '积分',
+        sessionUsage: '会话消耗',
+        sessionUsageHint: '按会话累计的对话扣费。搭子的扣费记录不带会话标记，插件按每轮的时间窗归因，同一笔只计一次；刚结束的一轮可能在下次刷新后才入账。',
+        noSessionUsage: '还没有会话消耗记录',
         member: '会员',
         memberYes: '会员生效中',
         memberNo: '非会员',
@@ -220,6 +223,9 @@ window.__ModuleLoader__.load({
         noCookies: 'No cookie yet',
         balance: 'Balance',
         points: 'points',
+        sessionUsage: 'Session usage',
+        sessionUsageHint: 'Chat charges accumulated per session. DuMate bills without a conversation tag, so the plugin attributes each charge by the turn’s time window and counts every charge once; a turn that just finished may appear after the next refresh.',
+        noSessionUsage: 'No session usage yet',
         member: 'Membership',
         memberYes: 'Active membership',
         memberNo: 'No membership',
@@ -329,6 +335,15 @@ window.__ModuleLoader__.load({
       if (value >= 1_000_000) return `${Math.round(value / 100_000) / 10}M`
       if (value >= 1000) return `${Math.round(value / 1000)}K`
       return String(value)
+    }
+
+    /** A short, stable handle for a session id in the usage list. */
+    function shortSession(id) {
+      const text = String(id ?? '')
+      if (text === '') return '—'
+      // Session ids look like `agent-1-session-<uuid>`; the tail distinguishes
+      // them, so keep the last 8 characters.
+      return `…${text.slice(-8)}`
     }
 
     /**
@@ -1204,6 +1219,27 @@ window.__ModuleLoader__.load({
                   ]))),
             ].filter(Boolean)
           })(),
+        ]),
+
+        // ── per-session consumption ─────────────────────────────────────────
+        h('div', { key: 'sessions', className: 'dp-section' }, [
+          h('div', { key: 'h', className: 'dp-row', style: { justifyContent: 'space-between' } }, [
+            h('div', { key: 't', className: 'dp-section-title' }, t('sessionUsage')),
+            h('button', {
+              key: 'r',
+              className: 'dp-btn small',
+              disabled: busy !== '' || accounts.length === 0,
+              onClick: () => { void action('usage-refresh', () => call('usage/refresh', {})) },
+            }, busy === 'usage-refresh' ? t('refreshing') : t('refresh')),
+          ]),
+          h('div', { key: 'hint', className: 'dp-hint' }, t('sessionUsageHint')),
+          (snapshot.sessionUsage ?? []).length === 0
+            ? h('div', { key: 'none', className: 'dp-muted', style: { fontSize: 12 } }, t('noSessionUsage'))
+            : h('div', { key: 'list', className: 'dp-log' }, (snapshot.sessionUsage ?? []).slice(0, 12).map(entry => h('div', { key: entry.sessionId, className: 'dp-log-row' }, [
+              h('span', { key: 't', className: 'dp-time' }, ago(entry.at, t)),
+              h('span', { key: 's', className: 'dp-muted', title: entry.sessionId }, shortSession(entry.sessionId)),
+              h('span', { key: 'p', className: 'dp-ok-text' }, `${formatPoints(entry.points)} ${t('points')}`),
+            ]))),
         ]),
 
         relogin === undefined ? null : h('div', {
