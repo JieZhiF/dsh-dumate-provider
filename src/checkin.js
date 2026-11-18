@@ -34,6 +34,9 @@ export class CheckinService {
     this.store = options.store
     this.logger = options.logger ?? {}
     this.afterCheckin = options.afterCheckin
+    // The two web calls are injectable so the state machine can be tested
+    // without a live cookie. Defaults are the real endpoints.
+    this.api = { checkinStatus, claimCheckin, ...(options.api ?? {}) }
     this.running = new Set()
   }
 
@@ -48,7 +51,7 @@ export class CheckinService {
    * @returns {Promise<{ok:boolean, todayDone:boolean, streak:number, totalPoints:number, error?:string, expired?:boolean}>}
    */
   async inspect(account) {
-    const status = await checkinStatus(account)
+    const status = await this.api.checkinStatus(account)
     if (!status.ok) return { ok: false, todayDone: false, streak: 0, totalPoints: 0, error: status.error, expired: status.expired }
     this.store.update(state => {
       const stored = state.accounts.find(entry => entry.id === account.id)
@@ -68,9 +71,14 @@ export class CheckinService {
   /**
    * Claim today's bonus for one account.
    *
-   * `force` is the manual button: it still calls the service even when the
-   * cached state says today is done, because the PC-side bonus is a second
-   * grant that the web console may not have collected yet.
+   * The claim endpoint is idempotent-but-always-successful: a second POST on
+   * the same day answers `success` without adding points. So the claim
+   * response alone can never decide "did I just earn points". We read the
+   * live status first and only POST when it says today is NOT claimed yet.
+   *
+   * `force` (the manual button) re-reads live status instead of trusting the
+   * cache — a stale cached "not yet" gets corrected — but it does NOT bypass
+   * a live "already done" verdict, because there is nothing left to claim.
    *
    * @param {object} account
    * @param {{force?:boolean}} [options]
@@ -78,36 +86,44 @@ export class CheckinService {
   async run(account, options = {}) {
     if (this.running.has(account.id)) return { ok: false, skipped: true, message: '签到正在进行 / check-in already running' }
     this.running.add(account.id)
-    const before = Number(account.checkin?.totalPoints ?? 0)
     try {
-      const status = await checkinStatus(account)
+      const status = await this.api.checkinStatus(account)
       if (!status.ok) {
         const message = explain(status)
         this.#record(account, { ok: false, message })
         return { ok: false, message, error: status.error, expired: status.expired }
       }
-      if (status.todayDone && options.force !== true) {
+      // Live status says today is claimed: never POST again — the endpoint
+      // would answer "success" and fake a second grant. Report the honest
+      // verdict, passing through the upstream toast when it reads as "done".
+      if (status.todayDone === true) {
         this.#storeStatus(account, status)
-        return { ok: true, already: true, message: status.issuedToast || '今日已签到 / already checked in today', streak: status.streak }
+        const toast = status.issuedToast ?? ''
+        const message = /已领取|已签到|already/i.test(toast)
+          ? toast
+          : '今日已签到，网页端 +200 已领取 / already checked in today'
+        return { ok: true, already: true, points: 0, streak: status.streak, message }
       }
-      const claim = await claimCheckin(account)
+      const before = status.totalPoints
+      const claim = await this.api.claimCheckin(account)
       if (!claim.ok) {
         const message = explain(claim)
         this.#record(account, { ok: false, message })
         return { ok: false, message, error: claim.error, expired: claim.expired }
       }
-      // Re-read: the claim response does not carry the new streak or total.
-      const after = await checkinStatus(account)
-      const points = after.ok && before > 0 && after.totalPoints > before ? after.totalPoints - before : 0
+      // Re-read: the claim response carries no total. The delta between the
+      // two status reads is the only honest measure of what was granted.
+      const after = await this.api.checkinStatus(account)
+      const points = after.ok ? Math.max(0, after.totalPoints - before) : 0
       this.#storeStatus(account, after.ok ? after : status, { points, claimed: true })
-      const message = after.ok && after.issuedToast !== ''
-        ? after.issuedToast
-        : `签到成功${points > 0 ? `，+${points} 积分` : ''}`
-      this.logger.info?.(`dumate-provider: ${account.name} 签到成功${points > 0 ? ` +${points}` : ''}`)
+      const message = points > 0
+        ? `签到成功，+${points} 积分 / checked in, +${points}`
+        : '签到已提交，但未检测到积分到账 / claimed, no points detected yet'
+      this.logger.info?.(`dumate-provider: ${account.name} 签到${points > 0 ? `成功 +${points}` : '已提交（未见积分变化）'}`)
       if (this.afterCheckin !== undefined) {
         void this.afterCheckin(account).catch(() => {})
       }
-      return { ok: true, already: false, points, streak: after.ok ? after.streak : 0, message }
+      return { ok: true, already: false, points, streak: after.ok ? after.streak : status.streak, message }
     } catch (error) {
       const message = error?.message ?? String(error)
       this.#record(account, { ok: false, message })

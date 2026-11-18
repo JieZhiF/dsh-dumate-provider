@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.1.1 — 2026-11-18
+
+- **Check-in no longer reports a false success.** The claim endpoint answers
+  `success` even when today was already claimed, so clicking repeatedly used to
+  show a green "checked in" toast every time while nothing was granted. The
+  service now reads the live status first and only POSTs the claim when today is
+  genuinely unclaimed; an already-claimed day returns `already: true` with no
+  POST, and a claim that grants nothing says "no points detected". The settings
+  page grades the result — green only for a real grant, neutral for
+  already-claimed / no-points, red for failures — and the "Check in all" button
+  summarizes per-account outcomes. Verified live: an already-claimed account now
+  produces zero POSTs to the claim endpoint.
+- Wording: the plugin serves **any personal account (free / Pro / Max)**, not
+  only a paid membership; the "no API for the personal tier" notice now reads
+  against the enterprise API lane rather than implying a paywall.
+- README gains English/简体中文 cross-links.
+
 ## 1.1.0 — 2026-11-17
 
 - **API lane**: a second provider route (`dumate-api`) for OpenAI-compatible endpoints (enterprise plan, company gateway, self-hosted relay). Base URL + API key + model list, with a "probe models" button that reads `GET /models`. These models appear in their own group, with no cookie and no point spending.

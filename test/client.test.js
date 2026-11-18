@@ -57,3 +57,31 @@ test('translate interpolates the active language', () => {
   assert.match(en, /3/)
   assert.notEqual(zh, en)
 })
+
+test('checkinNotice grades single-account results honestly', () => {
+  const { checkinNotice } = mod.__test
+  const t = (key, vars) => (vars === undefined ? key : `${key}:${JSON.stringify(vars)}`)
+  assert.equal(checkinNotice({ ok: true, already: true, points: 0, message: '今日已签到' }, t).kind, 'warn')
+  assert.equal(checkinNotice({ ok: true, already: false, points: 200, message: '签到成功，+200 积分' }, t).kind, 'ok')
+  assert.equal(checkinNotice({ ok: true, already: false, points: 0 }, t).kind, 'warn')
+  assert.equal(checkinNotice({ ok: false, expired: true }, t).kind, 'err')
+  assert.equal(checkinNotice(undefined, t).kind, 'err')
+})
+
+test('checkinNotice aggregates the all-accounts reply', () => {
+  const { checkinNotice } = mod.__test
+  const t = (key, vars) => (vars === undefined ? key : `${key}:${JSON.stringify(vars)}`)
+  const mixed = checkinNotice({ ok: true, results: [
+    { ok: true, already: false, points: 200 },
+    { ok: true, already: true, points: 0 },
+    { ok: false },
+  ] }, t)
+  assert.equal(mixed.kind, 'ok')
+  assert.match(mixed.text, /checkinGained.*200/)
+  assert.match(mixed.text, /checkinAlready/)
+  assert.match(mixed.text, /checkinFailed/)
+  const none = checkinNotice({ ok: true, results: [] }, t)
+  assert.equal(none.kind, 'warn')
+  const allBad = checkinNotice({ ok: true, results: [{ ok: false }, { ok: false }] }, t)
+  assert.equal(allBad.kind, 'err')
+})

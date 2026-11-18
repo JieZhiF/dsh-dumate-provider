@@ -68,6 +68,17 @@ window.__ModuleLoader__.load({
         checking: '签到中…',
         already: '今日已签',
         notYet: '今日未签',
+        checkinGainedOne: '签到成功，+{p} 积分',
+        checkinAlreadyOne: '今日已签到，没有重复发放',
+        checkinNoPoints: '签到已提交，但未检测到积分到账',
+        checkinFailedOne: '签到失败',
+        checkinExpired: 'Cookie 已过期，请重新登录后再签到',
+        checkinNoReply: '签到无响应',
+        checkinNone: '没有可签到的账号（需已启用且配置 Cookie）',
+        checkinGained: '{n} 个账号签到成功，共 +{p} 积分',
+        checkinAlready: '{n} 个账号今日已签',
+        checkinFailed: '{n} 个失败',
+        checkinAllFailed: '{n} 个账号签到均失败',
         streak: '连续 {n} 天',
         noCookies: '未配置 Cookie',
         balance: '余额',
@@ -178,6 +189,17 @@ window.__ModuleLoader__.load({
         checking: 'Checking in…',
         already: 'Checked in today',
         notYet: 'Not checked in',
+        checkinGainedOne: 'Checked in, +{p} points',
+        checkinAlreadyOne: 'Already checked in today — nothing was re-granted',
+        checkinNoPoints: 'Claim submitted, but no points were detected',
+        checkinFailedOne: 'Check-in failed',
+        checkinExpired: 'Cookie expired — sign in again before checking in',
+        checkinNoReply: 'No response from check-in',
+        checkinNone: 'No eligible accounts (enabled with a cookie required)',
+        checkinGained: '{n} accounts checked in, +{p} points total',
+        checkinAlready: '{n} already checked in today',
+        checkinFailed: '{n} failed',
+        checkinAllFailed: 'All {n} check-ins failed',
         streak: '{n}-day streak',
         noCookies: 'No cookie yet',
         balance: 'Balance',
@@ -313,6 +335,42 @@ window.__ModuleLoader__.load({
         tone: 'info',
         hint: expireAt > 0 ? t('planExpires', { date: formatDate(expireAt) }) : t('planNoExpiry'),
       }
+    }
+
+    /**
+     * Turn a check-in result into an honest banner.
+     *
+     * The claim endpoint answers "success" even when today was already
+     * claimed, so the server's `already` / `points` fields — not `ok` — decide
+     * the tone: a real grant is green, an already-claimed or no-points-detected
+     * answer is a neutral warning, and a failure is red.
+     *
+     * @param {object|undefined} result - one `account/checkin` reply, or a
+     *   `checkin/all` reply carrying `results`.
+     * @param {Function} t - translator.
+     * @returns {{kind:'ok'|'warn'|'err', text:string}}
+     */
+    function checkinNotice(result, t) {
+      if (result === null || result === undefined) return { kind: 'err', text: t('checkinNoReply') }
+      if (Array.isArray(result.results)) {
+        const rows = result.results
+        if (rows.length === 0) return { kind: 'warn', text: t('checkinNone') }
+        const failed = rows.filter(row => row.ok !== true)
+        if (failed.length === rows.length) return { kind: 'err', text: t('checkinAllFailed', { n: failed.length }) }
+        const earned = rows.filter(row => row.ok === true && row.already !== true && Number(row.points) > 0)
+        const done = rows.filter(row => row.ok === true && row.already === true)
+        const parts = []
+        if (earned.length > 0) parts.push(t('checkinGained', { n: earned.length, p: earned.reduce((sum, row) => sum + Number(row.points), 0) }))
+        if (done.length > 0) parts.push(t('checkinAlready', { n: done.length }))
+        if (failed.length > 0) parts.push(t('checkinFailed', { n: failed.length }))
+        return { kind: earned.length > 0 ? 'ok' : 'warn', text: parts.join(' · ') }
+      }
+      if (result.ok !== true) {
+        return { kind: 'err', text: result.expired === true ? t('checkinExpired') : (result.message ?? t('checkinFailedOne')) }
+      }
+      if (result.already === true) return { kind: 'warn', text: result.message ?? t('checkinAlreadyOne') }
+      if (!(Number(result.points) > 0)) return { kind: 'warn', text: result.message ?? t('checkinNoPoints') }
+      return { kind: 'ok', text: result.message ?? t('checkinGainedOne', { p: result.points }) }
     }
 
     /** Parse the model textarea: `id` or `id,label` per line. */
@@ -502,7 +560,7 @@ window.__ModuleLoader__.load({
         setNotice(undefined)
         try {
           const result = await fn()
-          setNotice({ kind: 'ok', text: result?.message ?? t('ok') })
+          setNotice(key.startsWith('checkin') ? checkinNotice(result, t) : { kind: 'ok', text: result?.message ?? t('ok') })
           await load()
           return result
         } catch (error) {
@@ -1065,7 +1123,7 @@ window.__ModuleLoader__.load({
     exports.inject = inject
     exports.name = 'dumate-provider'
     // Test seam: the pure projections are exercised without a browser.
-    exports.__test = { planOf, translate }
+    exports.__test = { planOf, translate, checkinNotice }
     return module.exports
   },
 })

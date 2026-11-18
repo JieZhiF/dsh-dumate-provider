@@ -136,3 +136,79 @@ test('routeKey folds separators so hyphenated paths reach their handler', async 
   assert.equal(routeKey('GET', ''), 'GET_state')
   assert.equal(routeKey('POST', 'login/status'), 'POST_login_status')
 })
+
+// ── check-in state machine ──────────────────────────────────────────────────
+function fakeStore(account) {
+  return { state: { accounts: [account], runs: [] }, update(fn) { fn(this.state) } }
+}
+
+test('check-in never re-claims when live status says today is done', async () => {
+  const { CheckinService } = await import('../src/checkin.js')
+  let claims = 0
+  const account = { id: 'a1', name: 't', cookie: 'x', checkin: { date: '', done: false } }
+  const service = new CheckinService({
+    store: fakeStore(account),
+    api: {
+      checkinStatus: async () => ({ ok: true, todayDone: true, streak: 3, totalPoints: 900, issuedToast: '今日已领取 200 积分，前往 PC 端可再领取 300 积分' }),
+      claimCheckin: async () => { claims += 1; return { ok: true, result: {} } },
+    },
+  })
+  const result = await service.run(account, { force: true })
+  assert.equal(claims, 0, 'the idempotent claim endpoint must not be hit again')
+  assert.equal(result.ok, true)
+  assert.equal(result.already, true)
+  assert.equal(result.points, 0)
+  assert.match(result.message, /已领取|already/)
+})
+
+test('check-in claims once when today is open and reports the delta', async () => {
+  const { CheckinService } = await import('../src/checkin.js')
+  let claims = 0
+  let total = 700
+  const account = { id: 'a1', name: 't', cookie: 'x', checkin: {} }
+  const service = new CheckinService({
+    store: fakeStore(account),
+    api: {
+      checkinStatus: async () => ({ ok: true, todayDone: claims > 0, streak: claims, totalPoints: total, issuedToast: '' }),
+      claimCheckin: async () => { claims += 1; total += 200; return { ok: true, result: {} } },
+    },
+  })
+  const result = await service.run(account)
+  assert.equal(claims, 1)
+  assert.equal(result.already, false)
+  assert.equal(result.points, 200)
+  assert.match(result.message, /\+200/)
+})
+
+test('a claim that grants nothing says so instead of celebrating', async () => {
+  const { CheckinService } = await import('../src/checkin.js')
+  const account = { id: 'a1', name: 't', cookie: 'x', checkin: {} }
+  const service = new CheckinService({
+    store: fakeStore(account),
+    api: {
+      checkinStatus: async () => ({ ok: true, todayDone: false, streak: 0, totalPoints: 500, issuedToast: '' }),
+      claimCheckin: async () => ({ ok: true, result: {} }),
+    },
+  })
+  const result = await service.run(account)
+  assert.equal(result.ok, true)
+  assert.equal(result.points, 0)
+  assert.match(result.message, /未检测到|no points/)
+})
+
+test('check-in reports expiry without calling the claim endpoint', async () => {
+  const { CheckinService } = await import('../src/checkin.js')
+  let claims = 0
+  const account = { id: 'a1', name: 't', cookie: 'x', checkin: {} }
+  const service = new CheckinService({
+    store: fakeStore(account),
+    api: {
+      checkinStatus: async () => ({ ok: false, error: '登录凭证已过期', expired: true }),
+      claimCheckin: async () => { claims += 1; return { ok: true } },
+    },
+  })
+  const result = await service.run(account)
+  assert.equal(result.ok, false)
+  assert.equal(result.expired, true)
+  assert.equal(claims, 0)
+})
