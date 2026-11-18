@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.1 — 2026-11-18
+
+- **The "取消冷却" button is always visible**, greyed and inert when the
+  account is not cooling, so its presence is stable instead of appearing and
+  disappearing.
+- **Nickname adoption now follows the refresh tick** instead of a one-shot 8s
+  timer: each scheduler pass adopts the Baidu nickname for any account still on
+  a placeholder label. A custom or already-named account is skipped with no
+  network call, so a user's own label is never overwritten.
+
 ## 1.3.0 — 2026-11-18
 
 - **Accounts are named by who they are.** Adding an account without a label

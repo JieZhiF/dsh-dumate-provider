@@ -71,30 +71,29 @@ export async function apply(ctx) {
   const adapter = new DumateAdapter({ store, tokens, pool, logger })
   const apiAdapter = new ApiAdapter({ store, logger })
 
-  // One-shot: accounts added before nickname naming existed carry a
-  // placeholder label (`搭子账号 N` / `账号 N`). Adopt the real Baidu
-  // nickname for them once, so the card shows who the account is. A rename
-  // by the user (any other label) is left untouched.
-  ctx.effect(() => {
-    const backfill = async () => {
-      for (const account of store.accounts()) {
-        if (account.enabled === false || account.cookie === '') continue
-        if (!isPlaceholderName(account.name)) continue
-        const who = await userInfo({ cookie: account.cookie }).catch(() => ({ ok: false, name: '' }))
-        if (who.ok !== true || who.name === '') continue
-        await store.update(state => {
-          const stored = state.accounts.find(entry => entry.id === account.id)
-          if (stored !== undefined && isPlaceholderName(stored.name)) {
-            stored.name = who.name.slice(0, 40)
-          }
-        })
-        logger.info?.(`dumate-provider: ${account.id} 采用百度昵称「${who.name}」`)
-      }
+  /**
+   * Adopt the Baidu nickname for accounts still carrying an auto-assigned
+   * placeholder label (`搭子账号 N` / `账号 N`). A label the user typed or
+   * renamed themselves is never touched. Runs inside the refresh tick, so a
+   * newly added account gets its real name on the next refresh without a
+   * dedicated timer; when no placeholder remains it costs nothing.
+   */
+  const adoptPlaceholders = async () => {
+    for (const account of store.accounts()) {
+      if (account.enabled === false || account.cookie === '') continue
+      if (!isPlaceholderName(account.name)) continue
+      const who = await userInfo({ cookie: account.cookie }).catch(() => ({ ok: false, name: '' }))
+      if (who.ok !== true || who.name === '') continue
+      await store.update(state => {
+        const stored = state.accounts.find(entry => entry.id === account.id)
+        // Re-check under the write lock: a rename in the meantime wins.
+        if (stored !== undefined && isPlaceholderName(stored.name)) {
+          stored.name = who.name.slice(0, 40)
+          logger.info?.(`dumate-provider: ${account.id} 采用百度昵称「${who.name}」`)
+        }
+      })
     }
-    // Deferred so plugin activation never blocks on the network.
-    const first = ctx.timeout(() => { void backfill().catch(() => {}) }, 8_000)
-    return () => first()
-  }, `${PLUGIN_NAME}: nickname backfill`)
+  }
 
   // The provider route: this is what puts 22 models under 百度搭子 in the picker.
   ctx.llm.registerAdapter([ROUTE], adapter)
@@ -152,6 +151,10 @@ export async function apply(ctx) {
     const tick = () => {
       void (async () => {
         try {
+          // Adopt the Baidu nickname for any account still on a placeholder
+          // label (a freshly added one, or one whose name fetch failed). No-op
+          // and no network once every account has a real name.
+          await adoptPlaceholders()
           const ran = await checkin.runDue()
           for (const result of ran) {
             logger.info?.(`${PLUGIN_NAME}: 自动签到 ${result.accountId} → ${result.ok ? 'ok' : result.message}`)

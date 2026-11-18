@@ -728,12 +728,13 @@ window.__ModuleLoader__.load({
                 disabled: busy !== '' || account.hasCookie !== true,
                 onClick: () => { void action(`test-${account.id}`, () => call('account/test', { id: account.id })) },
               }, busy === `test-${account.id}` ? t('testing') : t('test')),
-              coolingNow ? h('button', {
+              h('button', {
                 key: 'uncool',
                 className: 'dp-btn small',
-                disabled: busy !== '',
+                // Always shown; greyed and inert unless the account is parked.
+                disabled: busy !== '' || !coolingNow,
                 onClick: () => { void action(`uncool-${account.id}`, () => call('cooldown/clear', { id: account.id })) },
-              }, t('cancelCool')) : null,
+              }, t('cancelCool')),
               h('button', {
                 key: 're',
                 className: 'dp-btn small',
