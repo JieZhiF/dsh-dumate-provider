@@ -253,3 +253,50 @@ test('a claim that registers but names no amount reports points pending', async 
   assert.equal(result.points, 0)
   assert.match(result.message, /稍后到账|pending/)
 })
+
+// ── reasoning effort ────────────────────────────────────────────────────────
+test('only the five low-latency-backend models advertise a reasoning ladder', async () => {
+  const { supportsReasoning, REASONING_EFFORTS } = await import('../src/constants.js')
+  for (const id of ['deepseek-v41-flash', 'model-text', 'dm-auto-model/text.L0', 'dm-auto-model/mm.L0', 'dm-auto-model/mm.L2']) {
+    assert.equal(supportsReasoning(id), true, id)
+  }
+  // The other auto tiers and every third-party model run a different backend.
+  for (const id of ['dm-auto-model/mm.L1', 'dm-auto-model/text.L1', 'dm-auto-model/text.L2', 'kimi-k3', 'glm-53', 'qwen3.8-max']) {
+    assert.equal(supportsReasoning(id), false, id)
+  }
+  assert.deepEqual(REASONING_EFFORTS.map(e => e.id), ['off', 'low', 'high', 'max'])
+})
+
+test('effort maps to the gateway vocabulary, off as an explicit disable', async () => {
+  const { buildBody } = await import('../src/wire.js')
+  const entry = { id: 'deepseek-v41-flash', vision: true }
+  const none = buildBody({ model: entry.id, messages: [{ role: 'user', content: 'hi' }], reasoningEffort: 'off' }, entry)
+  assert.equal(none.reasoning_effort, undefined, 'off must not send an effort string')
+  assert.deepEqual(none.thinking, { type: 'disabled' })
+  assert.equal(none.enable_thinking, false, 'omitting the switch still thinks upstream')
+
+  const max = buildBody({ model: entry.id, messages: [{ role: 'user', content: 'hi' }], reasoningEffort: 'max' }, entry)
+  assert.equal(max.reasoning_effort, 'max')
+  assert.deepEqual(max.thinking, { type: 'enabled' })
+  assert.equal(max.enable_thinking, true)
+
+  const low = buildBody({ model: entry.id, messages: [{ role: 'user', content: 'hi' }], reasoningEffort: 'low' }, entry)
+  assert.equal(low.reasoning_effort, 'high', 'the Baidu channel runs low at high strength')
+})
+
+test('an unsupported model never receives effort fields', async () => {
+  const { buildBody } = await import('../src/wire.js')
+  const entry = { id: 'kimi-k3', vision: true }
+  const body = buildBody({ model: entry.id, messages: [{ role: 'user', content: 'hi' }], reasoningEffort: 'max' }, entry)
+  assert.equal(body.reasoning_effort, undefined)
+  assert.equal(body.thinking, undefined)
+  assert.equal(body.enable_thinking, undefined)
+})
+
+test('omitting the effort sends no thinking fields at all', async () => {
+  const { buildBody } = await import('../src/wire.js')
+  const entry = { id: 'model-text', vision: true }
+  const body = buildBody({ model: entry.id, messages: [{ role: 'user', content: 'hi' }] }, entry)
+  assert.equal(body.reasoning_effort, undefined)
+  assert.equal(body.thinking, undefined)
+})

@@ -103,6 +103,38 @@ export const MODELS = [
 /** Model ids in catalog order, for the settings page's "all on/off". */
 export const MODEL_IDS = MODELS.map(entry => entry.id)
 
+/**
+ * The reasoning-effort ladder the DuMate gateway actually honors.
+ *
+ * Verified 2026-11-13 against the live gateway (the same evidence the
+ * dumate2api reference records in `src/dumate-reasoning.js`): only the five
+ * models below run the `deepseek-v4.1-flash-low-latency` backend, and that
+ * backend accepts exactly `none / low / high / max`. `low` behaves identically
+ * to `high` on the Baidu channel, and turning thinking off requires an
+ * explicit `thinking:{type:'disabled'}` + `enable_thinking:false`, not merely
+ * omitting `reasoning_effort`. Every other model ignores the field, so we do
+ * not advertise a menu the upstream would silently drop.
+ */
+export const REASONING_EFFORTS = [
+  { id: 'off', name: 'Off', description: 'Answer directly without reasoning. For simple tasks.' },
+  { id: 'low', name: 'Low', description: 'Light reasoning. On the Baidu channel this runs at High strength.' },
+  { id: 'high', name: 'High', description: 'The default balance for most tasks.' },
+  { id: 'max', name: 'Max', description: 'Reserve the largest reasoning budget for the hardest tasks.' },
+]
+
+const REASONING_MODEL_IDS = new Set([
+  'deepseek-v41-flash',
+  'model-text',
+  'dm-auto-model/text.L0',
+  'dm-auto-model/mm.L0',
+  'dm-auto-model/mm.L2',
+])
+
+/** Whether one catalog id supports the selectable reasoning ladder. */
+export function supportsReasoning(id) {
+  return REASONING_MODEL_IDS.has(String(id ?? ''))
+}
+
 /** Look up one catalog row, or undefined for an unknown id. */
 export function modelInfo(id) {
   return MODELS.find(entry => entry.id === id)

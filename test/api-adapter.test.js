@@ -132,3 +132,15 @@ test('ApiAdapter reports a readable failure for an unknown model', async () => {
     }
   }, /没有 API 账号提供模型/)
 })
+
+test('the cookie adapter advertises the effort ladder only for supported models', async () => {
+  const { DumateAdapter } = await import('../src/adapter.js')
+  const store = { enabledModels: () => ['deepseek-v41-flash', 'kimi-k3'], accounts: () => [] }
+  const adapter = new DumateAdapter({ store, tokens: {}, pool: {} })
+  const flash = await adapter.resolveModel('dumate', 'deepseek-v41-flash')
+  assert.ok(Array.isArray(flash.reasoning?.efforts), 'flash exposes a reasoning menu')
+  assert.deepEqual(flash.reasoning.efforts.map(e => e.id), ['off', 'low', 'high', 'max'])
+  assert.equal(flash.reasoning.defaultEffort, undefined, 'no forced default; upstream default stays')
+  const kimi = await adapter.resolveModel('dumate', 'kimi-k3')
+  assert.equal(kimi.reasoning, undefined, 'a different backend advertises no menu')
+})

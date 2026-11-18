@@ -13,7 +13,7 @@
  *
  * @module src/adapter
  */
-import { CHAT_BASE, CHAT_PATH, MODELS, PROVIDER_NAME, USER_AGENT, modelInfo } from './constants.js'
+import { CHAT_BASE, CHAT_PATH, MODELS, PROVIDER_NAME, REASONING_EFFORTS, USER_AGENT, modelInfo, supportsReasoning } from './constants.js'
 import { openStream } from './http.js'
 import { BlockWriter, buildBody, finishReasonOf, mapUsage, readSse } from './wire.js'
 
@@ -125,6 +125,7 @@ export class DumateAdapter {
       inputModalities: entry.vision ? ['text', 'image'] : ['text'],
       context: { contextWindow: entry.context },
       defaultMaxTokens: Math.min(entry.maxOutput, FALLBACK_MAX_TOKENS),
+      ...(supportsReasoning(entry.id) ? { reasoning: { efforts: REASONING_EFFORTS } } : {}),
     }
   }
 

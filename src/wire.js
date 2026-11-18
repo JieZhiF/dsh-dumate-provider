@@ -12,6 +12,8 @@
  */
 import { StringDecoder } from 'node:string_decoder'
 
+import { supportsReasoning } from './constants.js'
+
 /** Placeholder sent when a non-vision model receives an image block. */
 export const IMAGE_PLACEHOLDER = '[图片已省略：当前模型不支持视觉输入 / image omitted: this model is text-only]'
 
@@ -112,6 +114,23 @@ export function buildBody(options, catalogEntry) {
     stream_options: { include_usage: true },
   }
   if (typeof options.temperature === 'number' && Number.isFinite(options.temperature)) body.temperature = options.temperature
+  // The picker's effort id maps onto the gateway's vocabulary. `off` must be
+  // an explicit disable — omitting reasoning_effort still thinks (verified
+  // against the live gateway); `low` is normalized to `high` because the
+  // Baidu channel runs them at the same strength. Only models whose upstream
+  // actually honors the field reach this branch; the caller passes
+  // `supportsReasoning(entry.id)` as the gate.
+  if (options.reasoningEffort !== undefined && options.reasoningEffort !== null && supportsReasoning(catalogEntry?.id)) {
+    const effort = String(options.reasoningEffort).toLowerCase()
+    if (effort === 'off' || effort === 'none') {
+      body.thinking = { type: 'disabled' }
+      body.enable_thinking = false
+    } else if (effort === 'low' || effort === 'high' || effort === 'max') {
+      body.reasoning_effort = effort === 'low' ? 'high' : effort
+      body.thinking = { type: 'enabled' }
+      body.enable_thinking = true
+    }
+  }
   // The catalog's `maxOutput` is a ceiling, not a request default: sending it
   // verbatim would ask for 384K tokens on every call.
   const ceiling = typeof catalogEntry?.maxOutput === 'number' ? Math.min(catalogEntry.maxOutput, 32_768) : 32_768

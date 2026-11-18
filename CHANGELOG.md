@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.2.0 — 2026-11-18
+
+- **Reasoning effort is now selectable.** Five DuMate models that run the
+  `deepseek-v4.1-flash-low-latency` backend (`DeepSeek V4.1 Flash`, `model-text`,
+  and the auto tiers `text.L0` / `mm.L0` / `mm.L2`) advertise an
+  Off / Low / High / Max menu in the model picker, using the same four-tier
+  ladder the live gateway honors (verified 2026-11-13). `off` sends an explicit
+  `thinking:{type:'disabled'}` + `enable_thinking:false` — omitting the switch
+  still thinks upstream — and `low` is normalized to `high` because the Baidu
+  channel runs them at identical strength. Models on other backends advertise
+  no menu, so the picker never offers something the upstream would drop. No
+  default effort is forced, so an unselected model behaves exactly as before.
+
 ## 1.1.3 — 2026-11-18
 
 - **Browser sign-in fixed**: `login/start` and `login/cancel` were called
