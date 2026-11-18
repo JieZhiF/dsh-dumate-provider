@@ -30,7 +30,7 @@ window.__ModuleLoader__.load({
       zh: {
         nav: '百度搭子',
         title: '百度搭子',
-        subtitle: '个人会员账号 · 签到积分 · 22 个模型',
+        subtitle: '搭子个人账号（免费 / Pro / Max）· 签到积分 · 22 个模型',
         refresh: '刷新',
         refreshing: '刷新中…',
         accounts: '账号',
@@ -140,7 +140,7 @@ window.__ModuleLoader__.load({
       en: {
         nav: 'Baidu DuMate',
         title: 'Baidu DuMate',
-        subtitle: 'Personal membership · check-in points · 22 models',
+        subtitle: 'Personal accounts (free / Pro / Max) · check-in points · 22 models',
         refresh: 'Refresh',
         refreshing: 'Refreshing…',
         accounts: 'Accounts',

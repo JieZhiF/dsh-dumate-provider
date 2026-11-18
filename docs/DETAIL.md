@@ -1,6 +1,6 @@
 # Baidu DuMate
 
-A native DSH provider for a Baidu DuMate personal membership. Models appear in the model picker, and accounts, balance, daily check-in and per-model switches live on one settings page.
+A native DSH provider for Baidu DuMate personal accounts (free, Pro or Max). Models appear in the model picker, and accounts, balance, daily check-in and per-model switches live on one settings page.
 
 ## What it does
 

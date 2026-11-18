@@ -2,7 +2,7 @@
 
 **English** | [简体中文](./README.zh.md)
 
-Native DeepSeek Harness (DSH) plugin: connects a **Baidu DuMate personal membership** as a provider. Models appear in the model picker; accounts, balance, daily check-in and per-model switches live on one settings page.
+Native DeepSeek Harness (DSH) plugin: connects a **Baidu DuMate account** (free, Pro or Max) as a provider. Models appear in the model picker; accounts, balance, daily check-in and per-model switches live on one settings page.
 
 - 22 models (DeepSeek V4 Pro / V4.1 Flash, Kimi K3 / K3.1, GLM-5.3, Qwen 3.8 Max, Doubao Seed 2.0, ERNIE 4.5 VL, the `dm-auto-model` L0–L2 tiers, …)
 - Cookie → `dumate-svc.baidu.com` directly: no local gateway, no extra port
@@ -59,7 +59,7 @@ The enterprise tier has an official API (`api.dumate.cn`, API key + SSE + tool c
 
 ## Limits
 
-- Personal tier only: DuMate issues no API key, so a web cookie is the only credential.
+- Personal accounts — free, Pro or Max — all work: DuMate issues no API key for them, so a web cookie is the only credential. Enterprise API keys go through the built-in `dumate-api` lane.
 - Points are spent per message and the daily check-in only tops them up — not an unlimited quota. The plugin claims the **web** check-in (+200/day); the PC client's extra 300 must be claimed in the desktop app.
 - Balance counts only active `product === "dumate"` packages, which can differ from the website's `totalPoints`.
 - Images are forwarded as a `[图片]` placeholder in this version; text and tool calls are unaffected.

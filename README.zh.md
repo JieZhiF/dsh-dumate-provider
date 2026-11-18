@@ -2,7 +2,7 @@
 
 [English](./README.md) | **简体中文**
 
-DeepSeek Harness（DSH）原生插件：把**百度搭子 DuMate 个人会员**接成 provider，模型进选择器，账号 / 余额 / 签到 / 模型开关进设置页。
+DeepSeek Harness（DSH）原生插件：把**百度搭子 DuMate 账号**（免费 / Pro / Max 均可）接成 provider，模型进选择器，账号 / 余额 / 签到 / 模型开关进设置页。
 
 - 22 个模型（DeepSeek V4 Pro、V4.1 Flash、Kimi K3 / K3.1、GLM-5.3、Qwen 3.8 Max、豆包 Seed 2.0、文心 4.5 VL、搭子自动档 L0–L2 …）
 - Cookie 直连 `dumate-svc.baidu.com`，无本地网关、无额外端口
@@ -62,7 +62,7 @@ dsh plugin --profile web add /home/viola/dumate-provider
 
 ## 兼容与限制
 
-- 只支持个人会员：搭子没有对外 API Key，只有网页 Cookie 这一条路。
+- 个人账号均可用（免费 / Pro / Max）：搭子不给个人账号发 API Key，网页 Cookie 是唯一凭证；企业版 API Key 走内置的 `dumate-api` 通道。
 - 积分按消息扣，签到只是补，不是无限额度。插件领取的是**网页端签到（每天 +200）**；PC 端另有 +300，需要在搭子桌面端自己领。
 - 余额只统计 `product === "dumate"` 且有效的包，与官网 `totalPoints` 可能有口径差。
 - 本版图片输入以 `[图片]` 占位（未做附件字节投影），文字与工具调用不受影响。
