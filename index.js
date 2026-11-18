@@ -133,6 +133,13 @@ export async function apply(ctx) {
           if (Date.now() - lastBalanceAt > BALANCE_REFRESH_MS) {
             lastBalanceAt = Date.now()
             await balance.refreshAll()
+            // Refresh the check-in state too: it carries the upstream day
+            // list, so the record fills without the user pressing anything.
+            for (const account of store.accounts()) {
+              if (account.enabled !== false && account.cookie !== '') {
+                await checkin.inspect(account).catch(() => {})
+              }
+            }
           }
         } catch (error) {
           logger.warn?.(`${PLUGIN_NAME}: scheduler tick failed: ${error?.message ?? error}`)

@@ -131,6 +131,9 @@ window.__ModuleLoader__.load({
         vision: '视觉',
         logs: '最近签到记录',
         noLogs: '还没有记录',
+        checkinDays: '签到日历',
+        checkinDaysHint: '共 {n} 天 · 来自搭子服务端，含插件之外的签到',
+        checkinDaysNone: '暂无签到日期',
         empty: '还没有账号：先把搭子网页端的 Cookie 粘进来。',
         lowBalance: '余额 {n} 积分，低于提醒阈值 {t} 积分，记得签到（网页端每天 +200）或补充积分。',
         error: '操作失败',
@@ -253,6 +256,9 @@ window.__ModuleLoader__.load({
         vision: 'vision',
         logs: 'Recent check-ins',
         noLogs: 'Nothing yet',
+        checkinDays: 'Check-in calendar',
+        checkinDaysHint: '{n} days total · from the DuMate server, includes check-ins made outside this plugin',
+        checkinDaysNone: 'No check-in dates yet',
         empty: 'No account yet — paste the DuMate web cookie first.',
         lowBalance: 'Balance {n} points is below the alert threshold {t} points. Check in (+200 a day on the web) or top up.',
         error: 'Failed',
@@ -453,6 +459,9 @@ window.__ModuleLoader__.load({
       .dp-switch input:disabled + span { opacity: .5; cursor: default; }
       .dp-log { display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
       .dp-log-row { display: flex; gap: 8px; align-items: baseline; }
+      .dp-days { display: flex; flex-wrap: wrap; gap: 5px; }
+      .dp-day { font-size: 11.5px; padding: 3px 7px; border-radius: 7px; background: color-mix(in srgb, var(--dsw-alias-state-success-primary, #16a34a) 12%, transparent); color: var(--dsw-alias-state-success-primary, #16a34a); border: 1px solid color-mix(in srgb, var(--dsw-alias-state-success-primary, #16a34a) 30%, transparent); font-variant-numeric: tabular-nums; }
+      .dp-day.today { font-weight: 700; box-shadow: 0 0 0 1px var(--dsw-alias-state-success-primary, #16a34a); }
       .dp-time { color: var(--dsw-alias-label-tertiary, #6b7280); font-variant-numeric: tabular-nums; flex: none; width: 86px; }
       .dp-error-text { color: var(--dsw-alias-state-error-primary, #dc2626); }
       .dp-ok-text { color: var(--dsw-alias-state-success-primary, #16a34a); }
@@ -1065,16 +1074,33 @@ window.__ModuleLoader__.load({
           ]))),
         ]),
 
-        // ── check-in log ────────────────────────────────────────────────────
+        // ── check-in record ─────────────────────────────────────────────────
         h('div', { key: 'logs', className: 'dp-section' }, [
           h('div', { key: 't', className: 'dp-section-title' }, t('logs')),
-          (snapshot.runs ?? []).length === 0
-            ? h('div', { key: 'none', className: 'dp-muted' }, t('noLogs'))
-            : h('div', { key: 'list', className: 'dp-log' }, (snapshot.runs ?? []).slice().reverse().slice(0, 12).map((run, index) => h('div', { key: `${run.at}-${index}`, className: 'dp-log-row' }, [
-              h('span', { key: 't', className: 'dp-time' }, new Date(run.at).toLocaleString()),
-              h('span', { key: 'a', className: 'dp-muted' }, run.accountId ?? ''),
-              h('span', { key: 'm', className: run.ok === true ? 'dp-ok-text' : 'dp-error-text' }, run.message ?? ''),
-            ]))),
+          (() => {
+            const days = new Set()
+            for (const account of accounts) for (const day of account.checkin?.days ?? []) days.add(day)
+            const sorted = [...days].sort()
+            const nameOf = id => accounts.find(account => account.id === id)?.name ?? id
+            return [
+              sorted.length === 0
+                ? h('div', { key: 'dn', className: 'dp-muted', style: { fontSize: 12 } }, t('checkinDaysNone'))
+                : h('div', { key: 'd', className: 'dp-days' }, sorted.slice(-40).map(day => h('span', {
+                  key: day,
+                  className: day === snapshot.beijingDate ? 'dp-day today' : 'dp-day',
+                  title: day,
+                }, day.slice(5)))),
+              sorted.length > 0 ? h('div', { key: 'dh', className: 'dp-hint' }, t('checkinDaysHint', { n: sorted.length })) : null,
+              h('div', { key: 'a', className: 'dp-log', style: { marginTop: 8 } },
+                (snapshot.runs ?? []).length === 0
+                  ? h('div', { key: 'none', className: 'dp-muted' }, t('noLogs'))
+                  : (snapshot.runs ?? []).slice().reverse().slice(0, 12).map((run, index) => h('div', { key: `${run.at}-${index}`, className: 'dp-log-row' }, [
+                    h('span', { key: 't', className: 'dp-time' }, new Date(run.at).toLocaleString()),
+                    h('span', { key: 'a', className: 'dp-muted' }, run.name ?? nameOf(run.accountId)),
+                    h('span', { key: 'm', className: run.ok === true ? 'dp-ok-text' : 'dp-error-text' }, run.message ?? ''),
+                  ]))),
+            ].filter(Boolean)
+          })(),
         ]),
 
         relogin === undefined ? null : h('div', {

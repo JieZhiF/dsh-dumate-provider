@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.1 — 2026-11-18
+
+- **Check-in record is no longer empty.** Two fixes: a successful check-in now
+  writes an entry to the action log (only failures used to be logged, so
+  everyday success left the record blank), and the upstream `signInDays` list —
+  the real check-in calendar, including days claimed outside this plugin — is
+  now persisted on every status read and rendered as date chips with the
+  streak total. Repeat clicks that claim nothing do not spam the log.
+- The record shows account names instead of internal ids.
+
 ## 1.2.0 — 2026-11-18
 
 - **Reasoning effort is now selectable.** Five DuMate models that run the

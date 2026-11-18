@@ -282,9 +282,12 @@ export function createApi(deps) {
       sendJson(res, 200, { ok: true, results })
     },
 
-    /** POST /balance/refresh — refresh every account's balance now. */
+    /** POST /balance/refresh — refresh every account's balance + check-in now. */
     async POST_balance_refresh(_body, _req, res) {
       const results = await balance.refreshAll()
+      await Promise.all(store.accounts()
+        .filter(account => account.enabled !== false && account.cookie !== '')
+        .map(account => checkin.inspect(account).catch(() => {})))
       sendJson(res, 200, { ok: true, results })
     },
 

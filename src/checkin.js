@@ -62,6 +62,7 @@ export class CheckinService {
         done: status.todayDone,
         streak: status.streak,
         totalPoints: status.totalPoints,
+        days: Array.isArray(status.signInDays) ? status.signInDays.slice(-40) : stored.checkin?.days ?? [],
         checkedAt: Date.now(),
       }
     })
@@ -191,7 +192,23 @@ export class CheckinService {
         streak: status.streak ?? 0,
         totalPoints: status.totalPoints ?? stored.checkin?.totalPoints ?? 0,
         issuedToast: status.issuedToast ?? '',
+        // The upstream day list is the real check-in history: it covers days
+        // claimed before this plugin existed (web console, PC client, other
+        // tools), so the settings page can show a record instead of a blank.
+        days: Array.isArray(status.signInDays) ? status.signInDays.slice(-40) : stored.checkin?.days ?? [],
         at: Date.now(),
+      }
+      // A successful claim is an event worth logging; a repeated button click
+      // that found today already claimed is not, or the log would fill with
+      // no-ops and bury the real grants.
+      if (extra.claimed === true) {
+        state.runs.push({
+          at: Date.now(),
+          accountId: account.id,
+          name: account.name,
+          ok: true,
+          message: extra.points > 0 ? `签到成功 +${extra.points} 积分` : '签到成功（积分待入账）',
+        })
       }
     })
   }
@@ -211,7 +228,7 @@ export class CheckinService {
           at: Date.now(),
         }
       }
-      state.runs.push({ at: Date.now(), accountId: account.id, ok: outcome.ok === true, message: outcome.message })
+      state.runs.push({ at: Date.now(), accountId: account.id, name: account.name, ok: outcome.ok === true, message: outcome.message })
     })
   }
 }

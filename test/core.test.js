@@ -300,3 +300,31 @@ test('omitting the effort sends no thinking fields at all', async () => {
   assert.equal(body.reasoning_effort, undefined)
   assert.equal(body.thinking, undefined)
 })
+
+test('a successful check-in writes a run record and keeps the server day list', async () => {
+  const { CheckinService } = await import('../src/checkin.js')
+  let claims = 0
+  const account = { id: 'a1', name: '主号', cookie: 'x', checkin: {} }
+  const store = fakeStore(account)
+  const service = new CheckinService({
+    store,
+    api: {
+      checkinStatus: async () => ({
+        ok: true, todayDone: claims > 0, streak: 4, totalPoints: claims > 0 ? 900 : 700,
+        signInDays: ['2026-11-16', '2026-11-17', ...(claims > 0 ? ['2026-11-18'] : [])],
+        issuedToast: '',
+      }),
+      claimCheckin: async () => { claims += 1; return { ok: true, result: {} } },
+    },
+  })
+  const result = await service.run(account)
+  assert.equal(result.granted, true)
+  assert.equal(store.state.runs.length, 1, 'a real grant must appear in the record')
+  assert.match(store.state.runs[0].message, /\+200/)
+  assert.equal(store.state.runs[0].name, '主号')
+  assert.deepEqual(account.checkin.days, ['2026-11-16', '2026-11-17', '2026-11-18'])
+  // An "already claimed" repeat adds no noise to the record.
+  const again = await service.run(account, { force: true })
+  assert.equal(again.already, true)
+  assert.equal(store.state.runs.length, 1, 'a no-op repeat must not be logged')
+})
