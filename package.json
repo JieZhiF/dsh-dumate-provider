@@ -151,6 +151,14 @@
   ],
   "author": "viola",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JieZhiF/dsh-dumate-provider.git"
+  },
+  "homepage": "https://github.com/JieZhiF/dsh-dumate-provider#readme",
+  "bugs": {
+    "url": "https://github.com/JieZhiF/dsh-dumate-provider/issues"
+  },
   "publishConfig": {
     "access": "public"
   }

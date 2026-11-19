@@ -24,7 +24,7 @@ If it is not listed yet, use one of the direct paths below.
 dsh plugin --profile web add github:JieZhiF/dsh-dumate-provider
 ```
 
-**npm** (after publishing):
+**npm**:
 
 ```bash
 dsh plugin --profile web add dsh-dumate-provider
