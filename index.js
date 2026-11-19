@@ -26,7 +26,8 @@ import { CheckinService } from './src/checkin.js'
 import { NS, PLUGIN_NAME, PROVIDER_NAME, PROVIDER_NAME_API, ROUTE, ROUTE_API } from './src/constants.js'
 import { createRejection } from './src/fence.js'
 import { AccountPool } from './src/pool.js'
-import { createApi } from './src/routes.js'
+import { registerNative } from './src/native.js'
+import { createApi, createHandlers } from './src/routes.js'
 import { Store, isPlaceholderName } from './src/store.js'
 import { UsageTracker } from './src/usage.js'
 
@@ -39,12 +40,12 @@ const BALANCE_REFRESH_MS = 30 * 60 * 1000
 /** Plugin name, also the settings-section id it registers on the client half. */
 export const name = PLUGIN_NAME
 
-/**
- * The model picker needs the LLM registry, and the check-in scheduler needs the
- * timer service: `ctx.timeout`/`ctx.interval` are a mixin that cannot be read
- * without declaring the service here.
- */
-export const inject = ['llm', 'timer']
+// No top-level `inject`: this bundle is two halves with different service
+// needs. The provider half awaits `llm` (model picker) and `timer` (check-in
+// scheduler) below; the dsh-go native half awaits only `dshGo`. Declaring the
+// union at the top would keep the native half from loading on a Host that has
+// the bridge but not, say, the timer mixin — and it is what lets the dsh-go
+// plugin checker load this package without a full Host.
 
 /** Package version, read from the bundled manifest so it cannot drift from package.json. */
 const VERSION = createRequire(import.meta.url)('./package.json').version
@@ -98,23 +99,34 @@ export async function apply(ctx) {
   }
 
   // The provider route: this is what puts 22 models under 百度搭子 in the picker.
-  ctx.llm.registerAdapter([ROUTE], adapter)
-  // The API lane: an OpenAI-compatible endpoint with a key, when configured.
-  ctx.llm.registerAdapter([ROUTE_API], apiAdapter)
-  ctx.llm.registerConfigurableProviders?.([
-    {
-      provider: ROUTE,
-      displayName: PROVIDER_NAME,
-      settingsNs: ctx.fiber?.entry?.options?.id ?? name,
-      settingsPath: [],
-    },
-    {
-      provider: ROUTE_API,
-      displayName: PROVIDER_NAME_API,
-      settingsNs: ctx.fiber?.entry?.options?.id ?? name,
-      settingsPath: [],
-    },
-  ])
+  // `ctx.inject` rather than a top-level `inject`: the native half must be able
+  // to mount on a Host whose LLM registry is not ready yet.
+  ctx.inject(['llm'], scoped => {
+    scoped.effect(() => {
+      const offRoute = scoped.llm.registerAdapter([ROUTE], adapter)
+      // The API lane: an OpenAI-compatible endpoint with a key, when configured.
+      const offApi = scoped.llm.registerAdapter([ROUTE_API], apiAdapter)
+      return () => {
+        offRoute?.()
+        offApi?.()
+      }
+    }, `${PLUGIN_NAME}: provider routes`)
+
+    scoped.llm.registerConfigurableProviders?.([
+      {
+        provider: ROUTE,
+        displayName: PROVIDER_NAME,
+        settingsNs: ctx.fiber?.entry?.options?.id ?? name,
+        settingsPath: [],
+      },
+      {
+        provider: ROUTE_API,
+        displayName: PROVIDER_NAME_API,
+        settingsNs: ctx.fiber?.entry?.options?.id ?? name,
+        settingsPath: [],
+      },
+    ])
+  })
 
   // ── settings page data API ────────────────────────────────────────────────
   // `ctx.inject` rather than a one-shot `ctx.get('webServer')`: plugins load
@@ -124,7 +136,7 @@ export async function apply(ctx) {
     () => ctx.get('connection'),
     event => logger.info?.(`dumate-provider: settings request rejected (${event.source}:${event.reason}, ${event.status})`),
   )
-  const api = createApi({
+  const deps = {
     store, tokens, pool, balance, checkin, logins, usage, rejection, version: VERSION, logger,
     // Announce a changed catalog so the picker reloads. The event exists from
     // 0.2.2 on; emitting it on an older host reaches no listener, which is the
@@ -138,7 +150,11 @@ export async function apply(ctx) {
         logger.warn?.(`${PLUGIN_NAME}: catalog announce failed: ${error?.message ?? error}`)
       }
     },
-  })
+  }
+  // One handler table, two transports: HTTP for the web settings page, and
+  // `invoke` for the dsh-go native panel (same process, no socket).
+  const { invoke } = createHandlers(deps)
+  const api = createApi({ ...deps, handlers: undefined })
   ctx.inject(['webServer'], scoped => {
     scoped.effect(
       () => scoped.webServer.register({ kind: 'prefix', path: `/api/${NS}`, handler: api }),
@@ -148,7 +164,7 @@ export async function apply(ctx) {
   })
 
   // ── scheduler: daily check-in + periodic balance ──────────────────────────
-  ctx.effect(() => {
+  ctx.inject(['timer'], scoped => scoped.effect(() => {
     let lastBalanceAt = 0
     const tick = () => {
       void (async () => {
@@ -178,13 +194,21 @@ export async function apply(ctx) {
       })()
     }
     // First tick is deferred so plugin activation never blocks on the network.
-    const first = ctx.timeout(tick, 15_000)
-    const every = ctx.interval(tick, TICK_MS)
+    const first = scoped.timeout(tick, 15_000)
+    const every = scoped.interval(tick, TICK_MS)
     return () => {
       first()
       every()
     }
-  }, `${PLUGIN_NAME}: check-in scheduler`)
+  }, `${PLUGIN_NAME}: check-in scheduler`))
+
+  // ── dsh-go native half (phone app) ────────────────────────────────────────
+  // Only registers when the bridge service is present: on the web/desktop Host
+  // this callback never runs, so the settings page stays the only surface.
+  ctx.inject(['dshGo'], scoped => {
+    registerNative(scoped, { invoke, logger })
+    logger.info?.(`${PLUGIN_NAME}: dsh-go native panel registered`)
+  })
 
   logger.info?.(`${PLUGIN_NAME}: provider "${ROUTE}" registered with ${store.enabledModels().length} models`)
 }

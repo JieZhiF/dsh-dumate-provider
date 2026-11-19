@@ -28,8 +28,17 @@ import { userInfo } from './api.js'
 
 const execFileAsync = promisify(execFile)
 
-/** Where the sign-in flow starts. DuMate reuses Baidu Cloud SSO, so this is the login page. */
-export const LOGIN_URL = 'https://login.bce.baidu.com/?redirect=https%3A%2F%2Fwww.dumate.cn%2Fapp'
+/**
+ * Where the sign-in flow starts.
+ *
+ * DuMate reuses Baidu Cloud SSO, but `www.dumate.cn/app` is not an authorized
+ * redirect target: the SSO page comes back without a login form. The DuMate
+ * product page on cloud.baidu.com is, so the whole flow stays on one origin
+ * and the resulting `BDUSS` lands on `.baidu.com` either way — which is all the
+ * plugin reads.
+ */
+const CLOUD_PRODUCT = 'https://cloud.baidu.com/product-s/dumate_developement_platform.html'
+export const LOGIN_URL = `https://login.bce.baidu.com/?redirect=${encodeURIComponent(CLOUD_PRODUCT)}&cloudUrl=${encodeURIComponent(CLOUD_PRODUCT)}`
 
 /** How long a session waits for the user to finish signing in. */
 const SESSION_TIMEOUT_MS = 5 * 60 * 1000

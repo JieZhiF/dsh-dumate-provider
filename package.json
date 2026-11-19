@@ -1,6 +1,6 @@
 {
   "name": "dsh-dumate-provider",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "description": "百度搭子 DuMate 原生 provider：模型进选择器、设置页管账号/余额/签到/模型开关，Cookie 直连对话与发放接口。Baidu DuMate provider for DeepSeek Harness — models in the picker, a settings page for accounts, balance, daily check-in and per-model switches.",
   "type": "module",
   "main": "./index.js",
@@ -56,6 +56,72 @@
         "0.2.2-rc.2": "compatible",
         "0.2.2-rc.3": "compatible"
       }
+    }
+  },
+  "dshGo": {
+    "v": 1,
+    "title": {
+      "zh": "百度搭子",
+      "en": "DuMate"
+    },
+    "icon": "coin",
+    "wants": [
+      "clipboard"
+    ],
+    "contributes": {
+      "composer.actions": [
+        {
+          "id": "add-cookie",
+          "label": {
+            "zh": "贴搭子Cookie",
+            "en": "Add cookie"
+          },
+          "icon": "paste"
+        },
+        {
+          "id": "checkin",
+          "label": {
+            "zh": "搭子签到",
+            "en": "Check in"
+          },
+          "icon": "check"
+        }
+      ],
+      "composer.strip": [
+        {
+          "id": "dumate-summary",
+          "icon": "coin",
+          "panel": "dumate"
+        }
+      ],
+      "panels": [
+        {
+          "id": "dumate",
+          "title": {
+            "zh": "百度搭子",
+            "en": "Baidu DuMate"
+          },
+          "icon": "coin",
+          "placement": [
+            "session.tab",
+            "features",
+            "chat.panel",
+            "plugin"
+          ]
+        },
+        {
+          "id": "dumate-models",
+          "title": {
+            "zh": "模型开关",
+            "en": "Models"
+          },
+          "icon": "model",
+          "placement": [
+            "session.tab",
+            "features"
+          ]
+        }
+      ]
     }
   },
   "engines": {

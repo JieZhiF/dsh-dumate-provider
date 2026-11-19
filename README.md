@@ -36,6 +36,19 @@ dsh plugin --profile web add dsh-dumate-provider
 dsh plugin --profile web add /home/viola/dumate-provider
 ```
 
+## On the phone (dsh-go)
+
+One package, two faces. Desktop / Web UI keeps the settings page; the Android **dsh-go** app gets native panels from the same install:
+
+- A composer strip with the balance and today's check-in state; tap it to open the panel
+- Panel **Baidu DuMate**: one block per account (state / balance / check-in) with check-in, enable/disable, delete (two taps), refresh and check-in-all buttons
+- Panel **Models**: the 22 per-model switches, plus all-on / all-off
+- Composer actions: **Add cookie** (reads the clipboard, verifies, stores) and **Check in**
+
+There is no Chrome/Edge to drive on Android, so "sign in with a browser" stays desktop-only; on the phone you sign in at www.dumate.cn in a browser, copy the Cookie header, then tap the action. The clipboard is read only at that tap.
+
+The native half registers only when the Host runs the dsh-go bridge; the web settings page is unchanged. Both read the same state file (`$DSH_HOME/dumate-provider/state.json`).
+
 ## Usage
 
 1. DSH → Settings → Baidu DuMate → Add account → **Sign in with a browser**: a separate browser window opens; sign in there and the account is added automatically. (Manual paste still works: DevTools → Application → Cookies → `www.dumate.cn`.)

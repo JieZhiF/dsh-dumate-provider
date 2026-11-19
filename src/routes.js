@@ -91,7 +91,7 @@ function sendJson(res, status, value) {
  * @param {object} [deps.logger]
  * @returns {(req:import('node:http').IncomingMessage, res:import('node:http').ServerResponse)=>Promise<void>}
  */
-export function createApi(deps) {
+export function createHandlers(deps) {
   const { store, tokens, pool, balance, checkin, logins, usage, rejection, version, logger } = deps
   const catalogChanged = () => {
     try {
@@ -547,6 +547,58 @@ export function createApi(deps) {
       sendJson(res, 200, { ok: true, version })
     },
   }
+
+  /**
+   * In-process invocation of the same handlers, for callers already inside the
+   * Host process — today the dsh-go native panel, which has no socket of its
+   * own and must not have to pass the HTTP trust fence. Not exported over the
+   * web server: the routes below remain the only network surface.
+   *
+   * @param {string} method - HTTP verb (`GET` / `POST`).
+   * @param {string} pathname - route path without the `/api/dumate-provider` prefix.
+   * @param {object} [body] - request body, already parsed.
+   * @returns {Promise<{status:number, body:any}>}
+   */
+  const invoke = async (method, pathname, body = {}) => {
+    const key = routeKey(method, pathname)
+    const handler = routes[key]
+    if (handler === undefined) return { status: 404, body: { ok: false, error: `unknown route ${key}` } }
+    let status = 200
+    let text = ''
+    const res = {
+      headersSent: false,
+      writeHead(code) { status = code; this.headersSent = true },
+      end(chunk) { if (chunk !== undefined) text += String(chunk) },
+    }
+    try {
+      await handler(body ?? {}, {}, res)
+    } catch (error) {
+      logger?.warn?.(`dumate-provider: in-process ${key} failed: ${error?.message ?? error}`)
+      if (!res.headersSent) return { status: 500, body: { ok: false, error: error?.message ?? 'internal error' } }
+    }
+    let parsed
+    try {
+      parsed = text === '' ? undefined : JSON.parse(text)
+    } catch {
+      parsed = undefined
+    }
+    return { status, body: parsed }
+  }
+
+  return { routes, invoke }
+}
+
+/**
+ * The HTTP face of the settings page: trust fence, then dispatch to the same
+ * handlers {@link createHandlers} exposes in-process.
+ *
+ * @param {object} deps - see {@link createHandlers}.
+ * @returns {(req:import('node:http').IncomingMessage, res:import('node:http').ServerResponse)=>Promise<void>}
+ */
+export function createApi(deps) {
+  // The Host builds the table once and shares it with the in-process path.
+  const { routes } = deps.handlers ?? createHandlers(deps)
+  const { rejection, logger } = deps
 
   return async function api(req, res) {
     const rejected = rejection(req)
