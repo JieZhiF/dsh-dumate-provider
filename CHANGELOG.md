@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.1 — 2026-11-19
+
+- **Section order**: 签到记录 and 会话消耗 now sit above the API lane.
+- **GitHub link + Star button** in the page header, pointing at
+  `github.com/JieZhiF/dsh-dumate-provider` (opens in a new tab).
+
 ## 1.4.0 — 2026-11-18
 
 - **Per-session point consumption.** DuMate bills anonymously (every usage

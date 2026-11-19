@@ -23,6 +23,8 @@ window.__ModuleLoader__.load({
 
     const NS = 'dumate-provider'
     const API = '/api/dumate-provider'
+    const REPO_URL = 'https://github.com/JieZhiF/dsh-dumate-provider'
+    const REPO_LABEL = 'JieZhiF/dsh-dumate-provider'
     const inject = ['slots', 'locale']
 
     // ── copy ────────────────────────────────────────────────────────────────
@@ -149,6 +151,7 @@ window.__ModuleLoader__.load({
         ok: '完成',
         saved: '已保存',
         version: '版本 {v}',
+        starIt: '给项目点个 Star',
         stale: '数据来自 {time}',
         justNow: '刚刚',
         minutesAgo: '{n} 分钟前',
@@ -283,6 +286,7 @@ window.__ModuleLoader__.load({
         ok: 'Done',
         saved: 'Saved',
         version: 'version {v}',
+        starIt: 'Star this project',
         stale: 'Reading from {time}',
         justNow: 'just now',
         minutesAgo: '{n} min ago',
@@ -463,7 +467,7 @@ window.__ModuleLoader__.load({
       .dp-label { color: var(--dsw-alias-label-tertiary, #6b7280); font-size: 12px; }
       .dp-muted { color: var(--dsw-alias-label-tertiary, #6b7280); }
       .dp-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-      .dp-btn { border: 1px solid var(--dsw-alias-border-l2, #d1d5db); background: var(--dsw-alias-bg-layer-1, #fff); color: inherit; border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer; line-height: 1.45; transition: background .12s ease; }
+      .dp-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--dsw-alias-border-l2, #d1d5db); background: var(--dsw-alias-bg-layer-1, #fff); color: inherit; border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer; line-height: 1.45; transition: background .12s ease; }
       .dp-btn:hover { background: var(--dsw-alias-interactive-bg-hover, #f3f4f6); }
       .dp-btn:disabled { opacity: .55; cursor: default; }
       .dp-btn.primary { background: var(--dsw-alias-state-business-primary, #2563eb); border-color: transparent; color: #fff; }
@@ -774,6 +778,24 @@ window.__ModuleLoader__.load({
         h('div', { key: 'hero', className: 'dp-hero' }, [
           h('div', { key: 't', className: 'dp-title' }, t('title')),
           h('div', { key: 's', className: 'dp-sub' }, `${t('subtitle')} · ${t('version', { v: snapshot.version ?? '' })}`),
+          h('div', { key: 'links', className: 'dp-row', style: { marginTop: 10 } }, [
+            h('a', {
+              key: 'gh',
+              className: 'dp-btn small',
+              href: REPO_URL,
+              target: '_blank',
+              rel: 'noreferrer',
+              style: { textDecoration: 'none' },
+            }, `GitHub · ${REPO_LABEL}`),
+            h('a', {
+              key: 'star',
+              className: 'dp-btn small primary',
+              href: `${REPO_URL}/stargazers`,
+              target: '_blank',
+              rel: 'noreferrer',
+              style: { textDecoration: 'none' },
+            }, `★ ${t('starIt')}`),
+          ]),
         ]),
         banner.length === 0 ? null : h('div', { key: 'banners', className: 'dp-section' }, banner),
         settings.disclaimerAcceptedAt > 0
@@ -1038,6 +1060,56 @@ window.__ModuleLoader__.load({
           ]),
         ]),
 
+        // ── check-in record ─────────────────────────────────────────────────
+        h('div', { key: 'logs', className: 'dp-section' }, [
+          h('div', { key: 't', className: 'dp-section-title' }, t('logs')),
+          (() => {
+            const days = new Set()
+            for (const account of accounts) for (const day of account.checkin?.days ?? []) days.add(day)
+            const sorted = [...days].sort()
+            const nameOf = id => accounts.find(account => account.id === id)?.name ?? id
+            return [
+              sorted.length === 0
+                ? h('div', { key: 'dn', className: 'dp-muted', style: { fontSize: 12 } }, t('checkinDaysNone'))
+                : h('div', { key: 'd', className: 'dp-days' }, sorted.slice(-40).map(day => h('span', {
+                  key: day,
+                  className: day === snapshot.beijingDate ? 'dp-day today' : 'dp-day',
+                  title: day,
+                }, day.slice(5)))),
+              sorted.length > 0 ? h('div', { key: 'dh', className: 'dp-hint' }, t('checkinDaysHint', { n: sorted.length })) : null,
+              h('div', { key: 'a', className: 'dp-log', style: { marginTop: 8 } },
+                (snapshot.runs ?? []).length === 0
+                  ? h('div', { key: 'none', className: 'dp-muted' }, t('noLogs'))
+                  : (snapshot.runs ?? []).slice().reverse().slice(0, 12).map((run, index) => h('div', { key: `${run.at}-${index}`, className: 'dp-log-row' }, [
+                    h('span', { key: 't', className: 'dp-time' }, new Date(run.at).toLocaleString()),
+                    h('span', { key: 'a', className: 'dp-muted' }, run.name ?? nameOf(run.accountId)),
+                    h('span', { key: 'm', className: run.ok === true ? 'dp-ok-text' : 'dp-error-text' }, run.message ?? ''),
+                  ]))),
+            ].filter(Boolean)
+          })(),
+        ]),
+
+        // ── per-session consumption ─────────────────────────────────────────
+        h('div', { key: 'sessions', className: 'dp-section' }, [
+          h('div', { key: 'h', className: 'dp-row', style: { justifyContent: 'space-between' } }, [
+            h('div', { key: 't', className: 'dp-section-title' }, t('sessionUsage')),
+            h('button', {
+              key: 'r',
+              className: 'dp-btn small',
+              disabled: busy !== '' || accounts.length === 0,
+              onClick: () => { void action('usage-refresh', () => call('usage/refresh', {})) },
+            }, busy === 'usage-refresh' ? t('refreshing') : t('refresh')),
+          ]),
+          h('div', { key: 'hint', className: 'dp-hint' }, t('sessionUsageHint')),
+          (snapshot.sessionUsage ?? []).length === 0
+            ? h('div', { key: 'none', className: 'dp-muted', style: { fontSize: 12 } }, t('noSessionUsage'))
+            : h('div', { key: 'list', className: 'dp-log' }, (snapshot.sessionUsage ?? []).slice(0, 12).map(entry => h('div', { key: entry.sessionId, className: 'dp-log-row' }, [
+              h('span', { key: 't', className: 'dp-time' }, ago(entry.at, t)),
+              h('span', { key: 's', className: 'dp-muted', title: entry.sessionId }, shortSession(entry.sessionId)),
+              h('span', { key: 'p', className: 'dp-ok-text' }, `${formatPoints(entry.points)} ${t('points')}`),
+            ]))),
+        ]),
+
         // ── API lane ────────────────────────────────────────────────────────
         h('div', { key: 'api', className: 'dp-section' }, [
           h('div', { key: 'h', className: 'dp-row', style: { justifyContent: 'space-between' } }, [
@@ -1190,56 +1262,6 @@ window.__ModuleLoader__.load({
               ].filter(Boolean).join(' · ')),
             ]),
           ]))),
-        ]),
-
-        // ── check-in record ─────────────────────────────────────────────────
-        h('div', { key: 'logs', className: 'dp-section' }, [
-          h('div', { key: 't', className: 'dp-section-title' }, t('logs')),
-          (() => {
-            const days = new Set()
-            for (const account of accounts) for (const day of account.checkin?.days ?? []) days.add(day)
-            const sorted = [...days].sort()
-            const nameOf = id => accounts.find(account => account.id === id)?.name ?? id
-            return [
-              sorted.length === 0
-                ? h('div', { key: 'dn', className: 'dp-muted', style: { fontSize: 12 } }, t('checkinDaysNone'))
-                : h('div', { key: 'd', className: 'dp-days' }, sorted.slice(-40).map(day => h('span', {
-                  key: day,
-                  className: day === snapshot.beijingDate ? 'dp-day today' : 'dp-day',
-                  title: day,
-                }, day.slice(5)))),
-              sorted.length > 0 ? h('div', { key: 'dh', className: 'dp-hint' }, t('checkinDaysHint', { n: sorted.length })) : null,
-              h('div', { key: 'a', className: 'dp-log', style: { marginTop: 8 } },
-                (snapshot.runs ?? []).length === 0
-                  ? h('div', { key: 'none', className: 'dp-muted' }, t('noLogs'))
-                  : (snapshot.runs ?? []).slice().reverse().slice(0, 12).map((run, index) => h('div', { key: `${run.at}-${index}`, className: 'dp-log-row' }, [
-                    h('span', { key: 't', className: 'dp-time' }, new Date(run.at).toLocaleString()),
-                    h('span', { key: 'a', className: 'dp-muted' }, run.name ?? nameOf(run.accountId)),
-                    h('span', { key: 'm', className: run.ok === true ? 'dp-ok-text' : 'dp-error-text' }, run.message ?? ''),
-                  ]))),
-            ].filter(Boolean)
-          })(),
-        ]),
-
-        // ── per-session consumption ─────────────────────────────────────────
-        h('div', { key: 'sessions', className: 'dp-section' }, [
-          h('div', { key: 'h', className: 'dp-row', style: { justifyContent: 'space-between' } }, [
-            h('div', { key: 't', className: 'dp-section-title' }, t('sessionUsage')),
-            h('button', {
-              key: 'r',
-              className: 'dp-btn small',
-              disabled: busy !== '' || accounts.length === 0,
-              onClick: () => { void action('usage-refresh', () => call('usage/refresh', {})) },
-            }, busy === 'usage-refresh' ? t('refreshing') : t('refresh')),
-          ]),
-          h('div', { key: 'hint', className: 'dp-hint' }, t('sessionUsageHint')),
-          (snapshot.sessionUsage ?? []).length === 0
-            ? h('div', { key: 'none', className: 'dp-muted', style: { fontSize: 12 } }, t('noSessionUsage'))
-            : h('div', { key: 'list', className: 'dp-log' }, (snapshot.sessionUsage ?? []).slice(0, 12).map(entry => h('div', { key: entry.sessionId, className: 'dp-log-row' }, [
-              h('span', { key: 't', className: 'dp-time' }, ago(entry.at, t)),
-              h('span', { key: 's', className: 'dp-muted', title: entry.sessionId }, shortSession(entry.sessionId)),
-              h('span', { key: 'p', className: 'dp-ok-text' }, `${formatPoints(entry.points)} ${t('points')}`),
-            ]))),
         ]),
 
         relogin === undefined ? null : h('div', {
