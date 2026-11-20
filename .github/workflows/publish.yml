@@ -23,6 +23,9 @@ on:
 
 permissions:
   contents: read
+  # --provenance mints a short-lived OIDC token; without this the publish step
+  # fails with "provenance generation failed" before anything is uploaded.
+  id-token: write
 
 concurrency:
   group: publish-${{ github.ref }}
@@ -59,7 +62,8 @@ jobs:
 
       - name: Publish
         # --provenance signs the package with this workflow's identity, which is
-        # the point of publishing from CI rather than a laptop.
+        # the point of publishing from CI rather than a laptop. It needs the
+        # job-level `id-token: write` below; without it npm aborts before upload.
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
