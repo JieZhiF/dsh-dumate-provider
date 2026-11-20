@@ -30,7 +30,7 @@ dsh plugin --profile web add github:JieZhiF/dsh-dumate-provider
 dsh plugin --profile web add https://github.com/JieZhiF/dsh-dumate-provider/releases/download/v1.5.0/dsh-dumate-provider-1.5.0.tgz
 ```
 
-**npm 直装**（尚未发布到 npm；发布后可用）：
+**npm 直装**：
 
 ```bash
 dsh plugin --profile web add dsh-dumate-provider

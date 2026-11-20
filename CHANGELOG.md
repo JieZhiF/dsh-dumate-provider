@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.1 — 2026-11-20
+
+- README 去掉「npm 尚未发布」的限定：`dsh-dumate-provider@1.6.0` 已上 npm。
+- CI 的 `NPM_TOKEN` secret 已配置；`publish` workflow 现在能真正发布
+  （此前缺 secret 时按设计跳过）。本版用于验证 tag → Release + npm 的完整链路。
+
 ## 1.6.0 — 2026-11-20
 
 - **可视化用量**：新增「用量与冷却」面板（手机）和「按账号消耗」区块（网页版）。
