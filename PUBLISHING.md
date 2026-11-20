@@ -107,7 +107,16 @@ npm pack --dry-run
 **一次性设置**
 
 1. 在**能打开 npmjs.com 的网络/电脑**上生成 token：头像 → Access Tokens →
-   Generate New Token → **Classic Token** → 权限选 **Automation**（自动跳过 2FA 提示）。
+   Generate New Token。新账号只有 **Granular Token** 一种，按下面勾：
+
+   - **Bypass two-factor authentication**：**勾上**（否则 CI 发布时会要求 OTP，
+     而 workflow 没法填）
+   - **Permissions**：`Read and write (publish and stage)`
+   - **Select Packages**：`All Packages`
+   - **Organizations**：留空即可（这是可选项，个人账号不需要勾任何组织）
+   - **Expiration**：按需，30 天或更长
+
+   如果页面非要求选组织才能下一步，说明账号还在验证中；先完成邮箱验证再回来。
 2. 仓库 → Settings → Secrets and variables → Actions → New repository secret：
    名字 `NPM_TOKEN`，值贴刚生成的 token。
 3. 仓库 → Settings → Actions → General → Workflow permissions 保持默认（只读即可，
