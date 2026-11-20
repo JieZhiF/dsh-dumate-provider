@@ -93,3 +93,41 @@ npm pack --dry-run
 
 当前 `package.json` = **1.1.0**。若发 npm 与 GitHub 用同一版本，直接推即可；
 若之后改动过代码，记得同步 `package.json`、`CHANGELOG.md` 顶部的版本条目。
+
+---
+
+## 发布到 npm（CI 自动发，绕开被拦的 npmjs.com）
+
+有些网络里 `www.npmjs.com` 被 Cloudflare 拦（403「Just a moment」），网站打不开就
+没法在网页上建 token。好在**发布通道**走的是 `registry.npmjs.org`，不受那个拦截影响：
+把发布交给 GitHub Actions，本机只需要推 tag。
+
+`.github/workflows/publish.yml` 已就绪，推 `v*` tag 就发布。
+
+**一次性设置**
+
+1. 在**能打开 npmjs.com 的网络/电脑**上生成 token：头像 → Access Tokens →
+   Generate New Token → **Classic Token** → 权限选 **Automation**（自动跳过 2FA 提示）。
+2. 仓库 → Settings → Secrets and variables → Actions → New repository secret：
+   名字 `NPM_TOKEN`，值贴刚生成的 token。
+3. 仓库 → Settings → Actions → General → Workflow permissions 保持默认（只读即可，
+   provenance 只需要 `id-token: write`，workflow 里已经声明）。
+
+**每次发版**
+
+```bash
+# 改 package.json 的 version（例如 1.5.1），提交
+git tag v1.5.1
+git push origin main --tags
+```
+
+workflow 会：校验 tag 与 `package.json` 的 version 一致 → `npm run check` →
+`npm test` → `npm publish --provenance --access public`。任何一步失败都不会发布，
+所以 tag 写错版本号会直接红叉，不会把错的版本发上去。
+
+**注意**
+
+- 已存在的版本号不能重复发布；同版本重发要先 `npm version patch` 再打新 tag。
+- 手动重跑：Actions → publish → Run workflow（会按当前 `package.json` 版本发布，
+  同样不能重复）。
+- `--provenance` 会给包附上构建来源证明，要求仓库是 public 且 workflow 从 tag 触发。

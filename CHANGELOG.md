@@ -2,6 +2,11 @@
 
 ## 1.5.0 — 2026-11-19
 
+- **npm 发布走 CI**：`.github/workflows/publish.yml`，推 `v*` tag 触发，校验 tag
+  与 `package.json` 版本一致 → `npm run check` → `npm test` →
+  `npm publish --provenance`。用于 npmjs.com 网页被 Cloudflare 拦、但 registry
+  可达的网络；发版流程写进 `PUBLISHING.md`。
+
 - **dsh-go 原生界面**：同一个包现在也带手机端（`package.json` → `dshGo`）。
   输入框上方一条余额 / 签到状态条；面板「百度搭子」管账号（签到、启用停用、
   删除二次确认、刷新）；面板「模型开关」管 22 个模型；两个胶囊
