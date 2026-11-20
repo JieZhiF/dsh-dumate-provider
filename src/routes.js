@@ -121,6 +121,8 @@ export function createHandlers(deps) {
         ...publicState,
         cooldowns: pool.view(),
         sessionUsage: usage?.view() ?? [],
+        // Per-account spend, names resolved from the account store.
+        accountUsage: usage?.accountView?.(id => store.account(id)?.name ?? id) ?? [],
         beijingDate: beijingDate(),
         models: MODEL_IDS.map(id => {
           const info = modelInfo(id)

@@ -91,6 +91,21 @@ dsh plugin --profile web add /home/viola/dumate-provider
 - 余额只统计 `product === "dumate"` 且有效的包，与官网 `totalPoints` 可能有口径差。
 - 本版图片输入以 `[图片]` 占位（未做附件字节投影），文字与工具调用不受影响。
 
+## 同类项目
+
+这些项目从不同角度接同一个上游，本插件的若干设计参考过它们：
+
+| 项目 | 做什么 |
+|---|---|
+| [wearetheone777/dumate2api](https://github.com/wearetheone777/dumate2api) | 搭子 / 千问办公 / TRAE Work / Qoder → OpenAI·Anthropic·Google 三协议网关 |
+| [R227BOUT/magpie-dumate](https://github.com/R227BOUT/magpie-dumate) | 把搭子个人积分接入 Magpie；跨平台登录态、到期积分展示 |
+| [RanceLee233/dumate-rance](https://github.com/RanceLee233/dumate-rance) | 跨平台登录态、模型发现与持久化 |
+| [Alphaxiaoteng/dumate2api](https://github.com/Alphaxiaoteng/dumate2api) | 100% 兼容 OpenAI 格式的 2API 反代 |
+
+其中 **magpie-dumate** 记在 README 里的排查方法（不按默认路径猜真实安装位置、
+区分显示名与真实 API id、用新进程重新取 token 验证卸载独立性、"没测到不许写成通过"）
+也直接影响了本插件的验证标准，在此致谢。
+
 ## 开发
 
 ```bash

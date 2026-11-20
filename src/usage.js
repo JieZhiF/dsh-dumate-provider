@@ -7,6 +7,10 @@
  * when it started and ended; after it finishes we read the usage records that
  * fall inside that window and fold them into the session's running total.
  *
+ * Charges are folded into two rollups at once: the session's window (which
+ * chat spent it) and the account that served the turn (whose points paid for
+ * it). Both come from the same evidence, so they never disagree.
+ *
  * Two rules keep the numbers honest:
  *
  * 1. **A charge is counted once, ever.** Every row is fingerprinted (time +
@@ -98,9 +102,16 @@ export class UsageTracker {
       // can be stamped after the stream ends, and `rescan` needs the window
       // to attribute it. `view()` hides zero-point entries.
       const prev = Number(sessions[key]?.points ?? 0)
-      sessions[key] = { points: Math.round((prev + added) * 100) / 100, at: Date.now(), windowStart: startS }
+      sessions[key] = {
+        points: Math.round((prev + added) * 100) / 100,
+        at: Date.now(),
+        windowStart: startS,
+        // Which account served this chat; the panel groups by it.
+        accountId: account.id,
+      }
       state.sessionUsageOrder = pushOrder(state.sessionUsageOrder ?? (state.sessionUsageOrder = []), key)
       for (const stale of trimSessions(sessions, state.sessionUsageOrder, SESSION_LIMIT)) delete sessions[stale]
+      bumpAccount(state, account.id, added, 1)
       if (seen.length > SEEN_LIMIT) state.seenChargeSigs = seen.slice(-SEEN_LIMIT)
     })
     return { ok: true, points: added, total: this.total(key), rows: candidates.length }
@@ -146,7 +157,14 @@ export class UsageTracker {
           seenSet.add(row.sig)
           seen.push(row.sig)
           const prev = Number(live[entry.id]?.points ?? 0)
-          live[entry.id] = { points: Math.round((prev + row.points) * 100) / 100, at: Number(live[entry.id]?.at ?? Date.now()), windowStart: from }
+          const owner = live[entry.id]?.accountId ?? account.id
+          live[entry.id] = {
+            points: Math.round((prev + row.points) * 100) / 100,
+            at: Number(live[entry.id]?.at ?? Date.now()),
+            windowStart: from,
+            accountId: owner,
+          }
+          bumpAccount(mutateState, owner, row.points, 0)
           added += row.points
           touched += 1
         }
@@ -177,8 +195,42 @@ export class UsageTracker {
         sessionId: id,
         points: Number(sessions[id]?.points ?? 0),
         at: Number(sessions[id]?.at ?? 0),
+        accountId: String(sessions[id]?.accountId ?? ''),
       }))
       .filter(entry => entry.points > 0)
+  }
+
+  /**
+   * Points spent per account, biggest first — the read model for the panel's
+   * bar chart. Names are resolved by the caller, which owns the account store.
+   *
+   * @param {(id:string)=>string} [nameOf]
+   */
+  accountView(nameOf = id => id) {
+    const state = this.store.get?.() ?? {}
+    const accounts = state.accountUsage ?? {}
+    return Object.entries(accounts)
+      .map(([id, entry]) => ({
+        accountId: id,
+        name: nameOf(id),
+        points: Math.round(Number(entry?.points ?? 0) * 100) / 100,
+        turns: Number(entry?.turns ?? 0),
+        at: Number(entry?.at ?? 0),
+      }))
+      .filter(entry => entry.points > 0)
+      .sort((a, b) => b.points - a.points)
+  }
+}
+
+/** Fold freshly counted points into the account rollup. */
+function bumpAccount(state, accountId, points, turns) {
+  if (typeof accountId !== 'string' || accountId === '') return
+  const rollup = state.accountUsage ?? (state.accountUsage = {})
+  const prev = rollup[accountId] ?? { points: 0, turns: 0, at: 0 }
+  rollup[accountId] = {
+    points: Math.round((Number(prev.points ?? 0) + Number(points ?? 0)) * 100) / 100,
+    turns: Number(prev.turns ?? 0) + Number(turns ?? 0),
+    at: Date.now(),
   }
 }
 

@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { cookieFrom, modelsView, overviewView, stripText } from '../src/native.js'
+import { cookieFrom, modelsView, overviewView, REFERENCES, stripText, usageView } from '../src/native.js'
 import { createHandlers, routeKey } from '../src/routes.js'
 
 /** A `/state` body shaped like the one the web page receives. */
@@ -83,6 +83,44 @@ test('a form submit is read through every envelope the app has used', () => {
   assert.equal(cookieFrom([{ cookie: 'BDUSS=abc' }]), 'BDUSS=abc')
   assert.equal(cookieFrom({ formData: { cookie: 'BDUSS=abc' } }), 'BDUSS=abc')
   assert.equal(cookieFrom({ whatever: { deeper: 'x=1; BDUSS=abc; y=2' } }), 'x=1; BDUSS=abc; y=2')
+})
+
+test('the usage panel charts spend by account and by session', () => {
+  const view = usageView({
+    accountUsage: [
+      { accountId: 'a1', name: '搭子甲', points: 300, turns: 9, at: Date.now() },
+      { accountId: 'a2', name: '搭子乙', points: 100, turns: 2, at: Date.now() },
+    ],
+    sessionUsage: [{ sessionId: 's-1', points: 40, at: Date.now(), accountId: 'a1' }],
+    settings: { cooldownSeconds: 60 },
+  }, 'zh')
+  const charts = view.children.filter(child => child.type === 'chart')
+  assert.equal(charts.length, 2)
+  assert.deepEqual(charts[0].series[0].values, [300, 100])
+  assert.equal(charts[0].kind, 'bar')
+  assert.deepEqual(charts[1].series[0].values, [40])
+})
+
+test('the usage panel offers the cooldown steps and marks the current one', () => {
+  const view = usageView({ accountUsage: [], sessionUsage: [], settings: { cooldownSeconds: 120 } }, 'zh')
+  const options = view.children.find(child => child.type === 'options')
+  assert.equal(options.selected, '120')
+  assert.deepEqual(options.options.map(option => option.value).filter(Boolean).slice(0, 2), ['cooldown|0', 'cooldown|30'])
+  assert.match(JSON.stringify(view), /cooldown\|0/)
+})
+
+test('the usage panel explains a zero cooldown instead of hiding it', () => {
+  const view = usageView({ accountUsage: [], sessionUsage: [], settings: { cooldownSeconds: 0 } }, 'zh')
+  const callout = view.children.find(child => child.type === 'callout' && child.tone === 'warn')
+  assert.ok(callout !== undefined)
+  assert.match(callout.text, /已关闭冷却/)
+})
+
+test('the usage panel credits the sister projects', () => {
+  const view = usageView({ accountUsage: [], sessionUsage: [], settings: { cooldownSeconds: 60 } }, 'zh')
+  const list = view.children.filter(child => child.type === 'list').find(entry => entry.items.some(item => item.title === 'magpie-dumate'))
+  assert.ok(list !== undefined)
+  assert.equal(REFERENCES.every(ref => ref.url.startsWith('https://github.com/')), true)
 })
 
 test('the models panel exposes all 22 switches plus the bulk buttons', () => {

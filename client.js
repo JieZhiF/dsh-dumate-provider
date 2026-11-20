@@ -94,6 +94,8 @@ window.__ModuleLoader__.load({
         sessionUsage: '会话消耗',
         sessionUsageHint: '按会话累计的对话扣费。搭子的扣费记录不带会话标记，插件按每轮的时间窗归因，同一笔只计一次；刚结束的一轮可能在下次刷新后才入账。',
         noSessionUsage: '还没有会话消耗记录',
+        accountUsage: '按账号消耗',
+        accountUsageHint: '每个账号实际承担的积分扣费。会话和账号用的是同一份归因：一轮对话的扣费同时记到发起它的会话和当轮服务它的账号上。',
         member: '会员',
         memberYes: '会员生效中',
         memberNo: '非会员',
@@ -229,6 +231,8 @@ window.__ModuleLoader__.load({
         sessionUsage: 'Session usage',
         sessionUsageHint: 'Chat charges accumulated per session. DuMate bills without a conversation tag, so the plugin attributes each charge by the turn’s time window and counts every charge once; a turn that just finished may appear after the next refresh.',
         noSessionUsage: 'No session usage yet',
+        accountUsage: 'Spend by account',
+        accountUsageHint: 'Points each account actually paid for. Sessions and accounts share one attribution: a turn charges both the chat that caused it and the account that served it.',
         member: 'Membership',
         memberYes: 'Active membership',
         memberNo: 'No membership',
@@ -1087,6 +1091,27 @@ window.__ModuleLoader__.load({
                   ]))),
             ].filter(Boolean)
           })(),
+        ]),
+
+        // ── per-account consumption ─────────────────────────────────────────
+        h('div', { key: 'acctusage', className: 'dp-section' }, [
+          h('div', { key: 't', className: 'dp-section-title' }, t('accountUsage')),
+          h('div', { key: 'hint', className: 'dp-hint' }, t('accountUsageHint')),
+          (snapshot.accountUsage ?? []).length === 0
+            ? h('div', { key: 'none', className: 'dp-muted', style: { fontSize: 12 } }, t('noSessionUsage'))
+            : h('div', { key: 'list', className: 'dp-log' }, (snapshot.accountUsage ?? []).slice(0, 12).map(entry => {
+              const top = Math.max(...(snapshot.accountUsage ?? []).map(row => Number(row.points) || 0), 1)
+              const pct = Math.round(((Number(entry.points) || 0) / top) * 100)
+              return h('div', { key: entry.accountId, className: 'dp-log-row' }, [
+                h('span', { key: 'n', className: 'dp-muted', style: { minWidth: 84 } }, entry.name ?? entry.accountId),
+                h('span', {
+                  key: 'bar',
+                  title: `${formatPoints(entry.points)} ${t('points')}`,
+                  style: { flex: '1 1 90px', height: 6, borderRadius: 3, background: 'var(--dsw-alias-border-l1, #e5e7eb)', overflow: 'hidden' },
+                }, h('span', { style: { display: 'block', width: `${pct}%`, height: '100%', borderRadius: 3, background: 'var(--dsw-alias-state-success-primary, #16a34a)' } })),
+                h('span', { key: 'p', className: 'dp-ok-text', style: { fontVariantNumeric: 'tabular-nums' } }, `${formatPoints(entry.points)} ${t('points')}`),
+              ])
+            })),
         ]),
 
         // ── per-session consumption ─────────────────────────────────────────

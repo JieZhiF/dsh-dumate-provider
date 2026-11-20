@@ -83,6 +83,23 @@ The enterprise tier has an official API (`api.dumate.cn`, API key + SSE + tool c
 - Balance counts only active `product === "dumate"` packages, which can differ from the website's `totalPoints`.
 - Images are forwarded as a `[图片]` placeholder in this version; text and tool calls are unaffected.
 
+## Sister projects
+
+These projects talk to the same upstream from other angles; several design
+choices here were informed by them:
+
+| Project | What it does |
+|---|---|
+| [wearetheone777/dumate2api](https://github.com/wearetheone777/dumate2api) | DuMate / Qianfan Office / TRAE Work / Qoder → OpenAI, Anthropic and Google gateways |
+| [R227BOUT/magpie-dumate](https://github.com/R227BOUT/magpie-dumate) | DuMate personal points into Magpie; cross-platform sign-in and expiring-points display |
+| [RanceLee233/dumate-rance](https://github.com/RanceLee233/dumate-rance) | cross-platform sign-in state, model discovery and persistence |
+| [Alphaxiaoteng/dumate2api](https://github.com/Alphaxiaoteng/dumate2api) | an OpenAI-compatible reverse proxy |
+
+**magpie-dumate**'s published troubleshooting notes (never guess the real
+install location, keep display names and real API ids apart, verify uninstall
+independence with a fresh process, and "if you have not measured it, do not
+write it down as passing") shaped this plugin's own verification standard.
+
 ## Development
 
 ```bash

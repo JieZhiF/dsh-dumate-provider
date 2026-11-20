@@ -23,6 +23,9 @@ export const PANEL = 'dumate'
 /** Panel with the 22 per-model switches. */
 export const PANEL_MODELS = 'dumate-models'
 
+/** Panel with usage charts, the cooldown setting and the reference list. */
+export const PANEL_USAGE = 'dumate-usage'
+
 /** Composer strip above the input box. */
 export const STRIP = 'dumate-summary'
 
@@ -232,10 +235,142 @@ export function overviewView(snapshot, pendingRemove, locale = 'zh') {
       { label: en ? 'Refresh' : '刷新余额', action: manage({ op: 'refresh' }) },
       { label: en ? 'Check in all' : '全部签到', action: manage({ op: 'checkin-all' }) },
       { label: en ? 'Models' : '模型开关', action: manage({ op: 'open-models' }) },
+      { label: en ? 'Usage' : '用量与冷却', action: manage({ op: 'open-usage' }) },
     ],
   })
 
   return { type: 'stack', title: en ? 'Baidu DuMate' : '百度搭子', children }
+}
+
+/**
+ * Sister projects worth crediting: they cover the same upstream from other
+ * angles, and more than one shape of this plugin was informed by them.
+ *
+ * Kept as data so the panel and the README cannot drift apart.
+ */
+export const REFERENCES = [
+  { name: 'dumate2api', url: 'https://github.com/wearetheone777/dumate2api', what: '搭子 / 千问办公 / TRAE / Qoder 的三协议网关', whatEn: 'DuMate & friends as OpenAI / Anthropic / Google gateways' },
+  { name: 'magpie-dumate', url: 'https://github.com/R227BOUT/magpie-dumate', what: '接入 Magpie 的个人积分通道', whatEn: 'DuMate personal points as a Magpie provider' },
+  { name: 'dumate-rance', url: 'https://github.com/RanceLee233/dumate-rance', what: '跨平台登录态与模型发现', whatEn: 'cross-platform sign-in and model discovery' },
+  { name: 'Alphaxiaoteng/dumate2api', url: 'https://github.com/Alphaxiaoteng/dumate2api', what: 'OpenAI 兼容反代', whatEn: 'OpenAI-compatible reverse proxy' },
+]
+
+/** Largest spend in a list, for scaling bars; 0 when there is nothing. */
+function peak(rows) {
+  return rows.reduce((max, row) => Math.max(max, Number(row.points) || 0), 0)
+}
+
+/**
+ * The usage panel: spend per account, spend per session, and the cooldown knob.
+ *
+ * @param {object|undefined} snapshot - `GET /state` body.
+ * @param {string} [locale]
+ */
+export function usageView(snapshot, locale = 'zh') {
+  const en = String(locale).toLowerCase().startsWith('en')
+  const accounts = snapshot?.accountUsage ?? []
+  const sessions = snapshot?.sessionUsage ?? []
+  const cooldown = Number(snapshot?.settings?.cooldownSeconds ?? 60)
+  const children = []
+
+  if (snapshot === undefined) {
+    children.push({ type: 'callout', text: en ? 'Loading…' : '正在读取用量…', tone: 'info' })
+  } else if (accounts.length === 0 && sessions.length === 0) {
+    children.push({
+      type: 'callout',
+      tone: 'info',
+      text: en
+        ? 'No usage recorded yet. Spend appears after a turn finishes; DuMate stamps charges a few seconds late.'
+        : '还没有用量记录。一轮结束后才会入账；搭子的扣费记录会晚几秒才盖上时间戳。',
+    })
+  }
+
+  if (accounts.length > 0) {
+    children.push({ type: 'text', text: en ? 'By account' : '按账号' })
+    children.push({
+      type: 'chart',
+      kind: 'bar',
+      categories: accounts.slice(0, 6).map(row => String(row.name ?? row.accountId).slice(0, 8)),
+      series: [{ name: en ? 'Points' : '积分', values: accounts.slice(0, 6).map(row => row.points) }],
+      unit: en ? 'pts' : '积分',
+      caption: en
+        ? `Total ${num(accounts.reduce((sum, row) => sum + row.points, 0))} points across ${accounts.length} accounts`
+        : `共 ${num(accounts.reduce((sum, row) => sum + row.points, 0))} 积分，${accounts.length} 个账号`,
+    })
+    children.push({
+      type: 'list',
+      items: accounts.slice(0, 8).map(row => ({
+        title: String(row.name ?? row.accountId),
+        subtitle: `${num(row.points)} 积分 · ${row.turns} 轮`,
+        trailing: peak(accounts) > 0 ? `${Math.round((row.points / peak(accounts)) * 100)}%` : '',
+      })),
+    })
+  }
+
+  if (sessions.length > 0) {
+    children.push({ type: 'text', text: en ? 'By session' : '按会话' })
+    const recent = sessions.slice(0, 8)
+    children.push({
+      type: 'chart',
+      kind: 'bar',
+      categories: recent.map(row => shortTime(row.at) || String(row.sessionId).slice(0, 6)),
+      series: [{ name: en ? 'Points' : '积分', values: recent.map(row => row.points) }],
+      unit: en ? 'pts' : '积分',
+      caption: en ? 'Newest 8 sessions with a charge' : '最近 8 个有扣费的会话',
+    })
+    children.push({
+      type: 'list',
+      items: recent.map(row => ({
+        title: `${shortTime(row.at)} · ${String(row.sessionId).slice(0, 8)}`,
+        subtitle: `${num(row.points)} 积分`,
+      })),
+    })
+  }
+
+  // ── cooldown ────────────────────────────────────────────────────────────
+  children.push({ type: 'text', text: en ? 'Failure cooldown' : '失败冷却' })
+  children.push({
+    type: 'callout',
+    tone: cooldown === 0 ? 'warn' : 'info',
+    text: cooldown === 0
+      ? (en ? 'Cooldown is off: a failing account is retried immediately.' : '已关闭冷却：账号失败后立刻重试。')
+      : (en
+          ? `Start ${cooldown}s, doubling to a 15-minute cap; a refused cookie parks for the full cap.`
+          : `起点 ${cooldown} 秒，翻倍到 15 分钟封顶；Cookie 被拒直接冷却满 15 分钟。`),
+  })
+  children.push({
+    type: 'options',
+    id: 'manage',
+    selected: String(cooldown),
+    options: [
+      { label: en ? 'Off (0)' : '关闭（0）', value: 'cooldown|0' },
+      { label: '30s', value: 'cooldown|30' },
+      { label: '60s', value: 'cooldown|60' },
+      { label: '120s', value: 'cooldown|120' },
+      { label: '300s', value: 'cooldown|300' },
+    ],
+  })
+  children.push({
+    type: 'actions',
+    items: [
+      { label: en ? 'Refresh usage' : '刷新用量', action: manage({ op: 'usage-refresh' }) },
+      { label: en ? 'Refresh balance' : '刷新余额', action: manage({ op: 'refresh' }) },
+      { label: en ? 'Clear cooldowns' : '清除冷却', action: manage({ op: 'clear-cooldown' }) },
+      { label: en ? 'This plugin' : '本项目主页', action: manage({ op: 'open-home' }) },
+    ],
+  })
+
+  // ── references ──────────────────────────────────────────────────────────
+  children.push({ type: 'text', text: en ? 'Sister projects' : '同类项目参考' })
+  children.push({
+    type: 'list',
+    items: REFERENCES.map(ref => ({
+      title: ref.name,
+      subtitle: String(en ? ref.whatEn : ref.what).slice(0, 40),
+    })),
+  })
+
+  return { type: 'stack', title: en ? 'Usage' : '用量与冷却', children }
 }
 
 /** The per-model switch panel. */
@@ -444,6 +579,7 @@ export function registerNative(ctx, deps) {
           return { refresh: true }
         }
         if (op === 'open-models') return { open: `panel:${PANEL_MODELS}` }
+        if (op === 'open-usage') return { open: `panel:${PANEL_USAGE}` }
         // The phone's browser has no DevTools, so this only opens the page; the
         // cookie still has to be copied on a device that can show it. Tapping it
         // again within a few seconds is a no-op: each tap is a browser intent,
@@ -469,6 +605,43 @@ export function registerNative(ctx, deps) {
         // version with a different envelope is diagnosable from the phone.
         if (args !== null && typeof args === 'object' && args.op === undefined && Object.keys(args).length > 0) {
           return { toast: `没读到 Cookie（字段：${Object.keys(args).slice(0, 4).join('、')}）` }
+        }
+        return { toast: '没有这个操作' }
+      }),
+    },
+  })
+
+  dshGo.panel(PANEL_USAGE, {
+    view: safeView((scope, caps) => usageView(cache.snapshot, caps?.locale), logger),
+    actions: {
+      manage: guard(async (_scope, event) => {
+        const args = event?.value ?? {}
+        const picked = typeof args.value === 'string' ? args.value : ''
+        if (picked.startsWith('cooldown|')) {
+          const seconds = Number(picked.slice('cooldown|'.length))
+          if (!Number.isFinite(seconds) || seconds < 0) return { toast: '冷却时间不合法' }
+          const result = await post('settings', { cooldownSeconds: seconds })
+          await reload()
+          if (result.status !== 200) return { toast: reason(result) }
+          return { toast: seconds === 0 ? '已关闭冷却' : `冷却起点已设为 ${seconds} 秒`, refresh: true }
+        }
+        const op = String(args.op ?? '')
+        if (op === 'usage-refresh') return deferred('正在刷新用量', async () => {
+          const result = await post('usage/refresh')
+          await reload()
+          const added = Number(result.body?.points ?? 0)
+          return { toast: added > 0 ? `补记 ${num(added)} 积分` : '没有新的扣费记录' }
+        })
+        if (op === 'refresh') return deferred('正在刷新余额', async () => {
+          const result = await post('balance/refresh')
+          await reload()
+          return result.status === 200 ? { toast: '已刷新' } : { toast: reason(result) }
+        })
+        if (op === 'open-home') return { link: 'https://github.com/JieZhiF/dsh-dumate-provider' }
+        if (op === 'clear-cooldown') {
+          const result = await post('cooldown/clear')
+          await reload()
+          return result.status === 200 ? { toast: `已清除 ${num(result.body?.cleared ?? 0)} 个冷却` } : { toast: reason(result) }
         }
         return { toast: '没有这个操作' }
       }),

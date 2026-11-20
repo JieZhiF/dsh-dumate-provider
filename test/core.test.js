@@ -372,7 +372,7 @@ test('isPlaceholderName matches every auto label and nothing custom', async () =
 
 // ── per-session usage attribution ─────────────────────────────────────────────
 function usageStore() {
-  const state = { sessionUsage: {}, sessionUsageOrder: [], seenChargeSigs: [] }
+  const state = { sessionUsage: {}, sessionUsageOrder: [], seenChargeSigs: [], accountUsage: {} }
   return { state, get: () => state, update(fn) { fn(state); return Promise.resolve() } }
 }
 const sec = s => ({ ok: true, rows: s.map((r, i) => ({ at: r.at, points: r.p, packageId: 'pkg', sig: `${r.at}|-${r.p}|pkg|${i}` })), consumedPoints: 0, totalCount: s.length })
@@ -400,6 +400,43 @@ test('the same charge is never counted twice across turns', async () => {
   tracker.turnStart('s1'); await tracker.turnEnd(account, 's1')
   tracker.turnStart('s1'); await tracker.turnEnd(account, 's1')
   assert.equal(tracker.total('s1'), 3, 'overlapping windows must not double-count')
+})
+
+test('a turn also charges the account that served it', async () => {
+  const { UsageTracker } = await import('../src/usage.js')
+  const store = usageStore()
+  const rows = [{ at: Math.floor(Date.now() / 1000), p: 4.5 }]
+  const tracker = new UsageTracker({ store, api: { usageRecords: async () => sec(rows) } })
+  tracker.turnStart('s1')
+  await tracker.turnEnd({ id: 'a1', cookie: 'x' }, 's1')
+  assert.equal(store.state.accountUsage.a1.points, 4.5)
+  assert.equal(store.state.accountUsage.a1.turns, 1)
+  assert.equal(store.state.sessionUsage.s1.accountId, 'a1')
+
+  // Per-account and per-session totals come from one attribution.
+  assert.equal(tracker.view()[0].accountId, 'a1')
+  const byAccount = tracker.accountView(id => (id === 'a1' ? '搭子甲' : id))
+  assert.deepEqual(byAccount.map(row => [row.name, row.points]), [['搭子甲', 4.5]])
+})
+
+test('two accounts each keep their own spend', async () => {
+  const { UsageTracker } = await import('../src/usage.js')
+  const store = usageStore()
+  const at = Math.floor(Date.now() / 1000)
+  // Two distinct charges, one per account: a single charge shared between two
+  // accounts would (correctly) be counted once, since the fingerprint is global.
+  let rows = [{ at: at - 1, p: 2 }]
+  const tracker = new UsageTracker({ store, api: { usageRecords: async () => sec(rows) } })
+  tracker.turnStart('s1')
+  await tracker.turnEnd({ id: 'a1', cookie: 'x' }, 's1')
+  rows = [{ at, p: 2 }]
+  tracker.turnStart('s2')
+  await tracker.turnEnd({ id: 'a2', cookie: 'y' }, 's2')
+  const view = tracker.accountView()
+  assert.equal(view.length, 2)
+  assert.equal(view.every(row => row.points === 2), true)
+  assert.equal(store.state.accountUsage.a1.points, 2)
+  assert.equal(store.state.accountUsage.a2.points, 2)
 })
 
 test('rescan claims a late charge for the most recent session once', async () => {
