@@ -24,7 +24,13 @@ DeepSeek Harness（DSH）原生插件：把**百度搭子 DuMate 账号**（免�
 dsh plugin --profile web add github:JieZhiF/dsh-dumate-provider
 ```
 
-**npm 直装**：
+**Release 直装**（不需要 npm 账号，推荐离线/受限网络）：
+
+```bash
+dsh plugin --profile web add https://github.com/JieZhiF/dsh-dumate-provider/releases/download/v1.5.0/dsh-dumate-provider-1.5.0.tgz
+```
+
+**npm 直装**（尚未发布到 npm；发布后可用）：
 
 ```bash
 dsh plugin --profile web add dsh-dumate-provider

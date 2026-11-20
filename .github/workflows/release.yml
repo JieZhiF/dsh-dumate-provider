@@ -1,0 +1,66 @@
+name: release
+
+# Cuts a GitHub Release with the packed .tgz attached. This is the distribution
+# path that needs no npm account: `dsh plugin add` accepts a tarball, and the
+# Release asset is a permanent, versioned URL.
+#
+#   git tag v1.5.1 && git push origin v1.5.1
+#
+# The tag must match package.json "version" (v1.5.1 → 1.5.1).
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check tag matches package.json
+        run: |
+          node -e '
+            const version = require("./package.json").version
+            const ref = process.env.GITHUB_REF_TYPE === "tag" ? process.env.GITHUB_REF_NAME : ""
+            if (ref === "") { console.log("manual run, packaging " + version); process.exit(0) }
+            if (ref !== "v" + version) { console.error("tag " + ref + " does not match package.json " + version); process.exit(1) }
+          '
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Check
+        run: npm run check
+
+      - name: Test
+        run: npm test
+
+      - name: Pack
+        id: pack
+        run: |
+          npm pack --pack-destination "$RUNNER_TEMP"
+          node -e 'console.log("version=" + require("./package.json").version)' >> "$GITHUB_OUTPUT"
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ runner.temp }}/dsh-dumate-provider-*.tgz
+          generate_release_notes: true
+          body: |
+            Install without npm:
+
+            ```bash
+            dsh plugin --profile web add \
+              https://github.com/${{ github.repository }}/releases/download/v${{ steps.pack.outputs.version }}/dsh-dumate-provider-${{ steps.pack.outputs.version }}.tgz
+            ```
+
+            Or from source: `dsh plugin --profile web add github:${{ github.repository }}`

@@ -2,6 +2,9 @@
 
 ## 1.5.0 — 2026-11-19
 
+- **GitHub Release 分发**：`.github/workflows/release.yml`，推 `v*` tag 自动打包
+  并附 `.tgz` 到 Release，给没有 npm 账号、或 npmjs.com 被 Cloudflare 拦的网络
+  一条可用安装路径（`dsh plugin add <Release 的 .tgz 链接>`）。
 - **npm 发布走 CI**：`.github/workflows/publish.yml`，推 `v*` tag 触发，校验 tag
   与 `package.json` 版本一致 → `npm run check` → `npm test` →
   `npm publish --provenance`。用于 npmjs.com 网页被 Cloudflare 拦、但 registry
