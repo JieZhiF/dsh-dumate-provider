@@ -60,7 +60,22 @@ jobs:
       - name: Test
         run: npm test
 
+      # Without the secret the job skips publishing instead of failing the tag:
+      # Secrets cannot be read in `if:`, so they are lifted into env first.
+      - name: Check for a token
+        id: token
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -n "$NPM_TOKEN" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::NPM_TOKEN is not set; skipping the npm publish step."
+          fi
+
       - name: Publish
+        if: steps.token.outputs.present == 'true'
         # --provenance signs the package with this workflow's identity, which is
         # the point of publishing from CI rather than a laptop. It needs the
         # job-level `id-token: write` below; without it npm aborts before upload.
