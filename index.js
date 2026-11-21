@@ -71,8 +71,9 @@ export async function apply(ctx) {
   })
   const logins = new BrowserLogin({ store, tokens, logger })
   const usage = new UsageTracker({ store, logger })
-  const adapter = new DumateAdapter({ store, tokens, pool, usage, logger })
-  const apiAdapter = new ApiAdapter({ store, logger })
+  const attachments = () => ctx.get('attachments')
+  const adapter = new DumateAdapter({ store, tokens, pool, usage, attachments, logger })
+  const apiAdapter = new ApiAdapter({ store, attachments, logger })
 
   /**
    * Adopt the Baidu nickname for accounts still carrying an auto-assigned

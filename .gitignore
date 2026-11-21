@@ -3,5 +3,6 @@ node_modules/
 *.log
 .DS_Store
 
-# internal handoff note, kept out of the public repo
+# internal handoff notes, kept out of the public repo
 HANDOFF.md
+docs/VISION-FIX.zh.md

@@ -81,7 +81,7 @@ The enterprise tier has an official API (`api.dumate.cn`, API key + SSE + tool c
 - Personal accounts — free, Pro or Max — all work: DuMate issues no API key for them, so a web cookie is the only credential. Enterprise API keys go through the built-in `dumate-api` lane.
 - Points are spent per message and the daily check-in only tops them up — not an unlimited quota. The plugin claims the **web** check-in (+200/day); the PC client's extra 300 must be claimed in the desktop app.
 - Balance counts only active `product === "dumate"` packages, which can differ from the website's `totalPoints`.
-- Images are forwarded as a `[图片]` placeholder in this version; text and tool calls are unaffected.
+- Vision models accept image input (`image_url` data URLs, up to 1 MiB per image, 8 images and 4 MiB total per request; oversized or unreadable attachments degrade to a text placeholder); text-only models receive an explicit text placeholder.
 
 ## Sister projects
 

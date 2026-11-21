@@ -15,7 +15,7 @@
  */
 import { CHAT_BASE, CHAT_PATH, MODELS, PROVIDER_NAME, REASONING_EFFORTS, USER_AGENT, modelInfo, supportsReasoning } from './constants.js'
 import { openStream } from './http.js'
-import { BlockWriter, buildBody, finishReasonOf, mapUsage, readSse } from './wire.js'
+import { BlockWriter, IMAGE_BUDGET, REQUEST_IMAGE_MAX_BYTES, buildBody, finishReasonOf, mapUsage, prepareRequestImages, readSse } from './wire.js'
 
 /** Default output ceiling when a catalog row is missing. */
 const FALLBACK_MAX_TOKENS = 32_768
@@ -56,6 +56,7 @@ export class DumateAdapter {
    * @param {import('./auth.js').TokenPool} options.tokens
    * @param {import('./pool.js').AccountPool} options.pool
    * @param {import('./usage.js').UsageTracker} [options.usage]
+   * @param {() => ({readImageRequest?:Function, imageLimits?:object}|undefined)} [options.attachments]
    * @param {{info?:Function, warn?:Function}} [options.logger]
    */
   constructor(options) {
@@ -63,6 +64,7 @@ export class DumateAdapter {
     this.tokens = options.tokens
     this.pool = options.pool
     this.usage = options.usage
+    this.attachments = options.attachments
     this.logger = options.logger ?? {}
   }
 
@@ -89,9 +91,13 @@ export class DumateAdapter {
     return undefined
   }
 
-  /** The default projection: preserve the normalized image as-is. */
+  /** Clamp each request image to the route's per-image byte budget. */
   imageRequestTarget(_provider, _model, image) {
-    return { width: image?.width, height: image?.height, maxBytes: image?.bytes }
+    return {
+      width: image?.width,
+      height: image?.height,
+      maxBytes: Math.min(image?.bytes ?? REQUEST_IMAGE_MAX_BYTES, REQUEST_IMAGE_MAX_BYTES),
+    }
   }
 
   /**
@@ -146,6 +152,10 @@ export class DumateAdapter {
    */
   async *stream(options) {
     const entry = modelInfo(options.model) ?? null
+    const images = entry?.vision === true
+      ? await prepareRequestImages(options.messages, this.attachments?.(), IMAGE_BUDGET, options.signal, this.logger)
+      : undefined
+    const callOptions = images === undefined ? options : { ...options, images }
     const sessionId = options.sessionId
     this.usage?.turnStart(sessionId)
     const tried = new Set()
@@ -168,7 +178,7 @@ export class DumateAdapter {
         continue
       }
 
-      const iterator = this.#call(options, entry, account, token.token)[Symbol.asyncIterator]()
+      const iterator = this.#call(callOptions, entry, account, token.token)[Symbol.asyncIterator]()
       let first
       try {
         first = await iterator.next()

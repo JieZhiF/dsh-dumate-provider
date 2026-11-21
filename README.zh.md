@@ -89,7 +89,7 @@ dsh plugin --profile web add /home/viola/dumate-provider
 - 个人账号均可用（免费 / Pro / Max）：搭子不给个人账号发 API Key，网页 Cookie 是唯一凭证；企业版 API Key 走内置的 `dumate-api` 通道。
 - 积分按消息扣，签到只是补，不是无限额度。插件领取的是**网页端签到（每天 +200）**；PC 端另有 +300，需要在搭子桌面端自己领。
 - 余额只统计 `product === "dumate"` 且有效的包，与官网 `totalPoints` 可能有口径差。
-- 本版图片输入以 `[图片]` 占位（未做附件字节投影），文字与工具调用不受影响。
+- 视觉模型支持图片输入（OpenAI 兼容 `image_url`，单图上限 1 MiB、单请求 8 张、总预算 4 MiB，超限或附件不可读时自动降级为文本占位）；纯文本模型收到明确的文本占位。
 
 ## 同类项目
 

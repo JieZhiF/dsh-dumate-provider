@@ -11,7 +11,7 @@
  */
 import { ROUTE_API, PROVIDER_NAME_API } from './constants.js'
 import { openStream } from './http.js'
-import { BlockWriter, buildBody, finishReasonOf, mapUsage, readSse } from './wire.js'
+import { BlockWriter, IMAGE_BUDGET, REQUEST_IMAGE_MAX_BYTES, buildBody, finishReasonOf, mapUsage, prepareRequestImages, readSse } from './wire.js'
 
 /** Normalize a configured base URL: no trailing slash, `/chat/completions` appended. */
 export function completionsUrl(baseURL) {
@@ -45,10 +45,12 @@ export class ApiAdapter {
   /**
    * @param {object} options
    * @param {import('./store.js').Store} options.store
+   * @param {() => ({readImageRequest?:Function, imageLimits?:object}|undefined)} [options.attachments]
    * @param {{info?:Function, warn?:Function}} [options.logger]
    */
   constructor(options) {
     this.store = options.store
+    this.attachments = options.attachments
     this.logger = options.logger ?? {}
   }
 
@@ -65,7 +67,11 @@ export class ApiAdapter {
   }
 
   imageRequestTarget(_provider, _model, image) {
-    return { width: image?.width, height: image?.height, maxBytes: image?.bytes }
+    return {
+      width: image?.width,
+      height: image?.height,
+      maxBytes: Math.min(image?.bytes ?? REQUEST_IMAGE_MAX_BYTES, REQUEST_IMAGE_MAX_BYTES),
+    }
   }
 
   async listModels(provider) {
@@ -102,7 +108,11 @@ export class ApiAdapter {
       throw new Error(`没有 API 账号提供模型 ${options.model}：请在「设置 → 百度搭子 → API 接入」里添加或启用`)
     }
     const model = (account.models ?? []).find(entry => entry.id === options.model)
-    const body = buildBody(options, { maxOutput: model?.maxOutput, vision: model?.vision === true })
+    const vision = model?.vision === true
+    const images = vision
+      ? await prepareRequestImages(options.messages, this.attachments?.(), IMAGE_BUDGET, options.signal, this.logger)
+      : undefined
+    const body = buildBody({ ...options, images }, { maxOutput: model?.maxOutput, vision })
     let response
     try {
       response = await openStream(completionsUrl(account.baseURL), {

@@ -51,7 +51,7 @@ In DSH the official API fits the generic OpenAI-compatible provider (`llm-pi-ai`
 - The personal tier has **no API key and no OAuth**; only a web cookie works. That is why "browser sign-in" drives a controlled browser: httpOnly cookies are readable only through the DevTools protocol.
 - Points are spent per message (rates differ by model) and the daily check-in only tops them up — this is **not an unlimited quota**.
 - The raw `quota_overview.totalPoints` folds in other Baidu products (e.g. `comate`) and unactivated future packages. This plugin counts only `product === "dumate"` packages that are still active, so its number can be lower than the website's. That is an accounting difference, not a missing package.
-- Images: a vision model receives a `[图片]` placeholder in this version (no attachment byte projection yet); text and tool calls are unaffected.
+- Images: vision models read normalized bytes through `ctx.attachments.readImageRequest` and forward them as OpenAI-compatible `image_url` base64 data URLs (up to 1 MiB per image, 8 images and 4 MiB total per request; oversized or missing attachments degrade to a text placeholder without failing the turn or triggering account failover); text-only models receive a text placeholder.
 - `dm-auto-model/*` tier codes live in the model name (`text.L1`); the slash is not a channel separator and the full name is passed through.
 
 ## Compatibility

@@ -17,6 +17,120 @@ import { supportsReasoning } from './constants.js'
 /** Placeholder sent when a non-vision model receives an image block. */
 export const IMAGE_PLACEHOLDER = '[图片已省略：当前模型不支持视觉输入 / image omitted: this model is text-only]'
 
+/** Per-image encoded byte ceiling before base64 expansion. */
+export const REQUEST_IMAGE_MAX_BYTES = 1_048_576
+/** Maximum number of images sent in a single request. */
+export const REQUEST_IMAGE_MAX_COUNT = 8
+/** Total image byte budget across a single request (before base64 expansion). */
+export const REQUEST_IMAGE_TOTAL_BYTES = 4_194_304
+/** Default request-level image budget shared by prepareRequestImages and imageRequestTarget. */
+export const IMAGE_BUDGET = Object.freeze({
+  maxImages: REQUEST_IMAGE_MAX_COUNT,
+  maxBytes: REQUEST_IMAGE_MAX_BYTES,
+  maxTotalBytes: REQUEST_IMAGE_TOTAL_BYTES,
+})
+
+function imageIdentity(ref) {
+  if (ref === null || typeof ref !== 'object') return 'unknown'
+  const id = typeof ref.attachmentId === 'string' && ref.attachmentId !== '' ? ref.attachmentId : 'unknown'
+  return typeof ref.name === 'string' && ref.name !== '' ? `${JSON.stringify(ref.name)} (${id})` : id
+}
+
+/** Model-facing handle paired with one inline request image. */
+export function imageHandleText(ref, version) {
+  const dims = Number.isFinite(version?.width) && Number.isFinite(version?.height) ? ` request preview ${version.width}x${version.height}px.` : ''
+  return `Image ${imageIdentity(ref)};${dims} It may be resized or re-encoded; source dimensions, format, and byte size may differ.`
+}
+
+/** Fallback text when an image is omitted (text-only model, budget limit, or unreadable attachment). */
+export function imagePlaceholderText(ref, vision) {
+  if (!vision) return IMAGE_PLACEHOLDER
+  return `[图片已省略：超出单次请求预算或附件不可读（${imageIdentity(ref)}）/ image omitted to fit request image limits; ${imageIdentity(ref)}]`
+}
+
+/**
+ * Pre-read and normalize every unique image referenced by `messages` within `budget`.
+ *
+ * Attachment read failures are swallowed (logged via `logger?.warn` when provided)
+ * so a missing or corrupted disk object degrades that single image to a placeholder
+ * instead of failing the turn or triggering account failover. Abort signals are
+ * respected and rethrown.
+ *
+ * @param {Array<object>} messages
+ * @param {{readImageRequest?:Function, imageLimits?:object}|undefined} attachments
+ * @param {{maxImages?:number, maxBytes?:number, maxTotalBytes?:number}} [budget]
+ * @param {AbortSignal} [signal]
+ * @param {{warn?:Function}} [logger]
+ * @returns {Promise<{versions:Map<string,object>, skipped:Set<string>}>}
+ */
+export async function prepareRequestImages(messages, attachments, budget = IMAGE_BUDGET, signal, logger) {
+  const versions = new Map()
+  const skipped = new Set()
+  if (typeof attachments?.readImageRequest !== 'function') return { versions, skipped }
+
+  const maxImages = Number.isFinite(budget?.maxImages) && budget.maxImages > 0 ? budget.maxImages : REQUEST_IMAGE_MAX_COUNT
+  const limitBytes = Number.isFinite(attachments?.imageLimits?.maxImageBytes) && attachments.imageLimits.maxImageBytes > 0
+    ? attachments.imageLimits.maxImageBytes
+    : Infinity
+  const maxBytes = Math.min(
+    limitBytes,
+    Number.isFinite(budget?.maxBytes) && budget.maxBytes > 0 ? budget.maxBytes : REQUEST_IMAGE_MAX_BYTES,
+  )
+  const maxTotalBytes = Number.isFinite(budget?.maxTotalBytes) && budget.maxTotalBytes > 0
+    ? budget.maxTotalBytes
+    : REQUEST_IMAGE_TOTAL_BYTES
+
+  const refs = new Map()
+  for (const message of messages ?? []) {
+    if (message === null || typeof message !== 'object' || !Array.isArray(message.content)) continue
+    for (const block of message.content) {
+      if (block?.type !== 'image' || block.offloaded === true) continue
+      const ref = block.attachment
+      const id = ref?.attachmentId
+      if (typeof id !== 'string' || id === '') continue
+      if (!refs.has(id)) refs.set(id, ref)
+    }
+  }
+  if (refs.size === 0) return { versions, skipped }
+
+  const orderedRefs = [...refs.values()]
+  const candidates = orderedRefs.slice(0, maxImages)
+  for (const extra of orderedRefs.slice(maxImages)) skipped.add(extra.attachmentId)
+
+  const results = await Promise.all(
+    candidates.map(async ref => {
+      if (signal?.aborted === true) throw signal.reason ?? new DOMException('The operation was aborted.', 'AbortError')
+      const target = {
+        width: ref.width,
+        height: ref.height,
+        maxBytes: Math.min(Number.isFinite(ref.bytes) && ref.bytes > 0 ? ref.bytes : maxBytes, maxBytes),
+      }
+      try {
+        const version = await attachments.readImageRequest(ref, target, signal)
+        return { ref, version }
+      } catch (error) {
+        if (signal?.aborted === true || error?.name === 'AbortError') throw error
+        logger?.warn?.(`dumate-provider: image attachment ${ref.attachmentId} skipped: ${error?.message ?? error}`)
+        return { ref, version: undefined }
+      }
+    }),
+  )
+
+  let totalBytes = 0
+  for (const { ref, version } of results) {
+    const id = ref.attachmentId
+    const bytes = Number.isFinite(version?.bytes) ? version.bytes : version?.data?.byteLength ?? 0
+    if (version === undefined || version === null || !version.data || bytes <= 0 || bytes > maxBytes || totalBytes + bytes > maxTotalBytes) {
+      skipped.add(id)
+      continue
+    }
+    totalBytes += bytes
+    versions.set(id, version)
+  }
+
+  return { versions, skipped }
+}
+
 /** Placeholder sent for a file reference, which never reaches a provider natively. */
 function filePlaceholder(block) {
   const name = block?.attachment?.name ?? block?.attachment?.filename ?? 'file'
@@ -38,12 +152,14 @@ function textOf(blocks) {
  * @param {object} [options]
  * @param {string} [options.system] - one-shot system prompt to prepend.
  * @param {boolean} [options.vision] - whether the target model accepts images.
+ * @param {{versions?:Map<string,object>, skipped?:Set<string>}} [options.images] - pre-read request images.
  * @returns {Array<object>}
  */
 export function toWireMessages(messages, options = {}) {
   const wire = []
   const systemParts = []
   if (typeof options.system === 'string' && options.system.trim() !== '') systemParts.push(options.system)
+  const versions = options.images?.versions
 
   for (const message of messages ?? []) {
     if (message === null || typeof message !== 'object') continue
@@ -57,11 +173,28 @@ export function toWireMessages(messages, options = {}) {
       case 'user': {
         const parts = []
         for (const block of blocks) {
-          if (block?.type === 'text' && typeof block.text === 'string') parts.push(block.text)
-          else if (block?.type === 'image') parts.push(options.vision === true ? '[图片]' : IMAGE_PLACEHOLDER)
-          else if (block?.type === 'file') parts.push(filePlaceholder(block))
+          if (block?.type === 'text' && typeof block.text === 'string') {
+            if (block.text !== '') parts.push({ type: 'text', text: block.text })
+          } else if (block?.type === 'image') {
+            const id = block.attachment?.attachmentId
+            const version = options.vision === true && id !== undefined ? versions?.get(id) : undefined
+            if (version !== undefined) {
+              parts.push({ type: 'text', text: imageHandleText(block.attachment, version) })
+              parts.push({
+                type: 'image_url',
+                image_url: { url: `data:${version.mediaType};base64,${Buffer.from(version.data).toString('base64')}` },
+              })
+            } else {
+              parts.push({ type: 'text', text: imagePlaceholderText(block.attachment, options.vision === true) })
+            }
+          } else if (block?.type === 'file') {
+            parts.push({ type: 'text', text: filePlaceholder(block) })
+          }
         }
-        const content = parts.join('')
+        if (parts.length === 0) break
+        const content = parts.every(part => part.type === 'text')
+          ? parts.map(part => part.text).join('')
+          : parts
         if (content !== '') wire.push({ role: 'user', content })
         break
       }
@@ -109,7 +242,11 @@ export function toWireMessages(messages, options = {}) {
 export function buildBody(options, catalogEntry) {
   const body = {
     model: options.model,
-    messages: toWireMessages(options.messages, { system: options.system, vision: catalogEntry?.vision === true }),
+    messages: toWireMessages(options.messages, {
+      system: options.system,
+      vision: catalogEntry?.vision === true,
+      images: options.images,
+    }),
     stream: true,
     stream_options: { include_usage: true },
   }

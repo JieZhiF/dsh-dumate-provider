@@ -7,7 +7,17 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { buildBody, finishReasonOf, mapUsage, readSse, toWireMessages } from '../src/wire.js'
+import {
+  IMAGE_BUDGET,
+  IMAGE_PLACEHOLDER,
+  REQUEST_IMAGE_MAX_BYTES,
+  buildBody,
+  finishReasonOf,
+  mapUsage,
+  prepareRequestImages,
+  readSse,
+  toWireMessages,
+} from '../src/wire.js'
 import { csrfFrom, normalizeCookie, validateCookie } from '../src/cookie.js'
 import { MODELS, modelInfo } from '../src/constants.js'
 
@@ -469,4 +479,155 @@ test('view lists only sessions with charges, newest first', async () => {
   const view = tracker.view()
   assert.deepEqual(view.map(e => e.sessionId), ['sB', 'sA'])
   assert.equal(view[0].points, 2)
+})
+
+// ── vision image projection ──────────────────────────────────────────────────
+test('toWireMessages projects vision images as image_url data URLs with a text handle', () => {
+  const ref = { attachmentId: 'sha256:9fb7d720', mediaType: 'image/png', bytes: 4, width: 64, height: 64, name: 'dot.png' }
+  const version = { data: Uint8Array.from([0x89, 0x50, 0x4e, 0x47]), mediaType: 'image/png', bytes: 4, width: 64, height: 64 }
+  const images = { versions: new Map([[ref.attachmentId, version]]), skipped: new Set() }
+
+  const wire = toWireMessages([
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: '看图说话' },
+        { type: 'image', attachment: ref },
+      ],
+    },
+  ], { vision: true, images })
+
+  assert.equal(wire.length, 1)
+  assert.equal(wire[0].role, 'user')
+  assert.equal(Array.isArray(wire[0].content), true, 'mixed text + image must use an array content')
+  assert.equal(wire[0].content.length, 3)
+  assert.deepEqual(wire[0].content[0], { type: 'text', text: '看图说话' })
+  assert.equal(wire[0].content[1].type, 'text')
+  assert.match(wire[0].content[1].text, /"dot\.png" \(sha256:9fb7d720\)/)
+  assert.match(wire[0].content[1].text, /64x64px/)
+  assert.deepEqual(wire[0].content[2], {
+    type: 'image_url',
+    image_url: { url: `data:image/png;base64,${Buffer.from([0x89, 0x50, 0x4e, 0x47]).toString('base64')}` },
+  })
+})
+
+test('toWireMessages keeps a string content when a vision image was skipped or missing', () => {
+  const ref = { attachmentId: 'sha256:deadbeef', mediaType: 'image/png', bytes: 100, width: 10, height: 10, name: 'big.png' }
+  const images = { versions: new Map(), skipped: new Set([ref.attachmentId]) }
+
+  const wire = toWireMessages([
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: '这张图呢？' },
+        { type: 'image', attachment: ref },
+      ],
+    },
+  ], { vision: true, images })
+
+  assert.equal(wire.length, 1)
+  assert.equal(typeof wire[0].content, 'string', 'text-only fallback must stay a string')
+  assert.match(wire[0].content, /这张图呢？/)
+  assert.match(wire[0].content, /sha256:deadbeef/)
+  assert.doesNotMatch(wire[0].content, /data:image/)
+})
+
+test('toWireMessages emits text-only placeholder and never image_url when vision is false', () => {
+  const ref = { attachmentId: 'sha256:9fb7d720', mediaType: 'image/png', bytes: 4, width: 64, height: 64 }
+  const version = { data: Uint8Array.from([1, 2, 3, 4]), mediaType: 'image/png', bytes: 4, width: 64, height: 64 }
+  const images = { versions: new Map([[ref.attachmentId, version]]), skipped: new Set() }
+
+  const wire = toWireMessages([
+    { role: 'user', content: [{ type: 'text', text: 'hi ' }, { type: 'image', attachment: ref }] },
+  ], { vision: false, images })
+
+  assert.equal(wire.length, 1)
+  assert.equal(wire[0].content, `hi ${IMAGE_PLACEHOLDER}`)
+})
+
+test('toWireMessages keeps pure text messages as strings', () => {
+  const wire = toWireMessages([
+    { role: 'user', content: [{ type: 'text', text: '第一段' }, { type: 'text', text: '第二段' }] },
+  ], { vision: true })
+  assert.deepEqual(wire, [{ role: 'user', content: '第一段第二段' }])
+})
+
+test('prepareRequestImages deduplicates by attachmentId and enforces count and byte budgets', async () => {
+  const ref1 = { attachmentId: 'sha256:1111', mediaType: 'image/png', bytes: 400, width: 100, height: 80 }
+  const ref2 = { attachmentId: 'sha256:2222', mediaType: 'image/jpeg', bytes: 500, width: 200, height: 150 }
+  const ref3 = { attachmentId: 'sha256:3333', mediaType: 'image/png', bytes: 300, width: 50, height: 50 }
+  const calls = []
+  const attachments = {
+    async readImageRequest(ref, target) {
+      calls.push({ id: ref.attachmentId, target })
+      return {
+        data: new Uint8Array(ref.bytes),
+        mediaType: ref.mediaType,
+        bytes: ref.bytes,
+        width: ref.width,
+        height: ref.height,
+      }
+    },
+  }
+  const messages = [
+    { role: 'user', content: [{ type: 'image', attachment: ref1 }, { type: 'image', attachment: ref2 }] },
+    { role: 'user', content: [{ type: 'image', attachment: ref1 }, { type: 'image', attachment: ref3 }] },
+  ]
+  // maxImages = 2 drops ref3 before reading; maxTotalBytes = 700 drops ref2 after reading (400 + 500 > 700).
+  const { versions, skipped } = await prepareRequestImages(messages, attachments, {
+    maxImages: 2,
+    maxBytes: 1000,
+    maxTotalBytes: 700,
+  })
+  assert.deepEqual(calls.map(c => c.id), ['sha256:1111', 'sha256:2222'], 'ref1 read once; ref3 skipped by maxImages')
+  assert.equal(versions.has('sha256:1111'), true)
+  assert.equal(versions.has('sha256:2222'), false)
+  assert.equal(skipped.has('sha256:2222'), true)
+  assert.equal(skipped.has('sha256:3333'), true)
+})
+
+test('prepareRequestImages swallows per-image attachment errors and keeps other images', async () => {
+  const bad = { attachmentId: 'sha256:missing', mediaType: 'image/png', bytes: 100, width: 10, height: 10 }
+  const good = { attachmentId: 'sha256:ok', mediaType: 'image/png', bytes: 8, width: 10, height: 10 }
+  const warnings = []
+  const attachments = {
+    async readImageRequest(ref) {
+      if (ref.attachmentId === 'sha256:missing') throw new Error('ENOENT: object missing')
+      return { data: new Uint8Array(8), mediaType: 'image/png', bytes: 8, width: 10, height: 10 }
+    },
+  }
+  const messages = [
+    { role: 'user', content: [{ type: 'image', attachment: bad }, { type: 'image', attachment: good }] },
+  ]
+  const { versions, skipped } = await prepareRequestImages(messages, attachments, IMAGE_BUDGET, undefined, {
+    warn: msg => warnings.push(msg),
+  })
+  assert.equal(versions.has('sha256:ok'), true)
+  assert.equal(versions.has('sha256:missing'), false)
+  assert.equal(skipped.has('sha256:missing'), true)
+  assert.equal(warnings.length, 1)
+  assert.match(warnings[0], /sha256:missing/)
+})
+
+test('imageRequestTarget clamps maxBytes to REQUEST_IMAGE_MAX_BYTES', async () => {
+  const { DumateAdapter } = await import('../src/adapter.js')
+  const { ApiAdapter } = await import('../src/adapter-api.js')
+  const cookieAdapter = new DumateAdapter({ store: {}, tokens: {}, pool: {} })
+  const apiAdapter = new ApiAdapter({ store: {} })
+
+  assert.deepEqual(cookieAdapter.imageRequestTarget('dumate', 'deepseek-v41-flash', { width: 2152, height: 882, bytes: 70_405 }), {
+    width: 2152,
+    height: 882,
+    maxBytes: 70_405,
+  })
+  assert.deepEqual(cookieAdapter.imageRequestTarget('dumate', 'deepseek-v41-flash', { width: 4000, height: 3000, bytes: 5_000_000 }), {
+    width: 4000,
+    height: 3000,
+    maxBytes: REQUEST_IMAGE_MAX_BYTES,
+  })
+  assert.deepEqual(apiAdapter.imageRequestTarget('dumate-api', 'm', { width: 1000, height: 1000, bytes: 9_000_000 }), {
+    width: 1000,
+    height: 1000,
+    maxBytes: REQUEST_IMAGE_MAX_BYTES,
+  })
 })

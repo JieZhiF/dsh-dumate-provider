@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.7.0 — 2026-11-21
+
+- **视觉模型图片输入**：修复视觉模型收到 `[图片]` 字面量占位而看不到图片的问题。
+  `DumateAdapter` 与 `ApiAdapter` 在流开始前（多账号故障切换循环外）通过
+  `ctx.attachments.readImageRequest` 并发预读并按 `attachmentId` 去重，
+  `toWireMessages` 对 `vision: true` 的模型投影为 `imageHandleText` +
+  OpenAI 兼容 `image_url`（base64 data URL）。
+- **图片请求预算与优雅降级**：单图上限 1 MiB（`imageRequestTarget` 收紧
+  `maxBytes`）、单请求最多 8 张、图片总字节上限 4 MiB（base64 前）。超出预算或
+  磁盘附件读取失败时单图降级为文本占位并记录 warning，不中断整轮对话、也不误判为
+  账号故障。纯文本消息的 `content` 保持字符串形态不变。
+- 测试 60 → 67：视觉投影、跳过/非视觉回退、纯文本字符串回归、去重与预算裁剪、
+  单图读失败降级、`imageRequestTarget` 预算收紧。
+
 ## 1.6.1 — 2026-11-20
 
 - README 去掉「npm 尚未发布」的限定：`dsh-dumate-provider@1.6.0` 已上 npm。
